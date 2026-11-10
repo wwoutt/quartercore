@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.14 has:
+- Version 0.15 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -137,6 +137,15 @@ it drives:
   saved but not applied, as OpenLinkHub does with its audio module off; muting
   only changes the mic LED. On the first start it takes over OpenLinkHub's
   headset profiles, button and RGB settings.
+- **The K100 keyboard**: key colours and colour profiles, the RGB effects (also
+  circle, circleshift and spinner), brightness, layout, polling rate, control dial
+  (volume, brightness, scroll, zoom, screen brightness, media, horizontal scroll)
+  and its colours, debounce time, performance (with the lock key), device profiles
+  and key assignments (media keys, keys, mouse buttons, macros, scroll, zoom,
+  screen brightness, profile change). On stop it goes back to hardware mode. Not
+  yet: DPI and sniper actions (they need a mouse driven by quartercore-core),
+  OpenRGB and the RGB cluster. Layouts are read from OpenLinkHub's
+  `database/keyboard`. On the first start it takes over OpenLinkHub's profile.
 - **A virtual keyboard and mouse** (`/dev/uinput`) for button actions and macros,
   made the first time a button needs them. Macros are still made in OpenLinkHub
   and read from its `database/macros/`; moving the mouse to an absolute position
@@ -181,13 +190,23 @@ curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDe
 sudo systemctl restart OpenLinkHub
 ```
 Back: the same with `true` and a restart of OpenLinkHub.
+
+**Switch the K100 over** (product id 7109; 7036 and 7037 for the other K100
+models). Keep a second keyboard or the mouse at hand: if something goes wrong,
+the way back is the same `curl` line with `true` and a restart of OpenLinkHub.
+```bash
+sudo install -m 644 data/udev/71-quartercore.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
+curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"7109": false}}'
+sudo systemctl restart OpenLinkHub
+```
 `curl -s http://127.0.0.1:27013/api/core` shows which devices it drives, and
 `journalctl --user -u quartercore-core` what it did.
 
 **Back to OpenLinkHub:**
 ```bash
 systemctl --user disable --now quartercore-core
-curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"7199": true, "7437": true, "2711": true}}'
+curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"7199": true, "7437": true, "2711": true, "7109": true}}'
 sudo systemctl restart OpenLinkHub
 ```
 and set the address back to `http://127.0.0.1:27003`.

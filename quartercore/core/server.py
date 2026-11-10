@@ -53,6 +53,11 @@ class Core:
         listed = self.openlinkhub_devices()
         self.openlinkhub_up = listed is not None
         with self.lock:
+            for serial in [s for s, d in self.drivers.items() if getattr(d, "gone", False)]:
+                # The device starts again (a new polling rate): take the new one over
+                self.log("%s reconnects" % serial)
+                self.drivers.pop(serial).release()
+                self.owned.discard(serial)
             for driver in self.discover():
                 self.drivers.setdefault(driver.serial, driver)
             for serial, driver in self.drivers.items():
@@ -193,6 +198,13 @@ def make_handler(core):
                 driver = core.driver(path.rsplit("/", 1)[1])
                 if driver is not None:
                     self.reply({"code": 200, "status": 0, "device": driver.device_json()})
+                    return
+            # Other reads with the serial at the end (/api/color/<serial>, /api/keyboard/.../<serial>)
+            driver = core.driver(path.rsplit("/", 1)[-1])
+            if driver is not None and hasattr(driver, "get"):
+                data = driver.get(path)
+                if data is not None:
+                    self.reply({"code": 200, "status": 1, "data": data})
                     return
             self.proxy("GET")
 

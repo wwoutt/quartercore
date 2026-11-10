@@ -178,7 +178,8 @@ class KeyAssignmentTest(unittest.TestCase):
         self.backend.notify.connect(lambda text, ok: self.messages.append((text, ok)))
         self.backend.selectDevice("KB1")
         self.assertTrue(wait(lambda: len(self.keyboard.dialColors) == 2 and len(self.keyboard.performance) == 4
-                             and len(self.keyboard.assignmentValues["3"]) == 4 and self.keyboard.macros))
+                             and len(self.keyboard.assignmentValues["3"]) == 4 and self.keyboard.macros
+                             and self.keyboard.assignmentValues.get("2") and self.keyboard.assignmentValues.get("21")))
 
     def tearDown(self):
         self.server.shutdown()

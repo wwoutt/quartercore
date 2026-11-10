@@ -4,7 +4,8 @@
 #
 # Ported from OpenLinkHub by Nikola Jurkovic (src/rgb/*.go): rgb.go and the
 # effects rainbow, pastelrainbow, watercolor, gradient, temperature,
-# colorpulse, rotator, wave, storm, flickering, colorshift and colorwarp.
+# colorpulse, rotator, wave, storm, flickering, colorshift, colorwarp, circle,
+# circleshift and spinner.
 # Only the plain output (one R, G, B per LED) is ported, not the AIO, LCD,
 # inverted and buffer variants. Profiles use OpenLinkHub's JSON format
 # ("speed", "brightness", "start", "middle", "end", "gradients").
@@ -30,6 +31,9 @@ _DEFAULTS = {
     "storm": (4, (32, 62, 77, 0.5, 0), None, (255, 255, 255, 0.5, 0)),
     "watercolor": (8, None, None, None),
     "wave": (5, (65, 143, 232, 1, 0), None, (130, 130, 130, 1, 0)),
+    "circle": (1, (255, 0, 0, 1, 0), None, (255, 0, 0, 1, 0)),
+    "circleshift": (5, (255, 0, 0, 1, 0), None, (0, 255, 0, 1, 0)),
+    "spinner": (1, (255, 0, 0, 1, 0), None, (255, 100, 0, 1, 0)),
 }
 _GRADIENT = [(255, 0, 0, 0), (0, 255, 0, 0.33), (0, 0, 255, 0.66), (255, 255, 0, 1)]
 
@@ -230,8 +234,9 @@ class Animation:
         self.warp_end = None
         self.warp_cycle = 0
 
-    def frame(self, mode, profile, channels, brightness, cpu_temp=0.0, gpu_temp=0.0):
-        """R, G, B per LED (bytes of channels * 3); brightness 0-1 from the slider."""
+    def frame(self, mode, profile, channels, brightness, cpu_temp=0.0, gpu_temp=0.0, set_colors=True):
+        """R, G, B per LED (bytes of channels * 3); brightness 0-1 from the slider.
+        set_colors=False keeps the brightness of the profile's own colours (keyboards with "RGB Profile")."""
         if mode == "off" or profile is None:
             return bytes(channels * 3)
         speed = max(0.1, min(10.0, float(profile.get("speed") or 0)))
@@ -239,8 +244,9 @@ class Animation:
         middle = Color.from_json(profile.get("middle"))
         if start.is_zero() or end.is_zero():
             start, end, middle = self.random_start.copy(), self.random_end.copy(), Color()
-        for c in (start, end, middle):
-            c.brightness = brightness
+        if set_colors:
+            for c in (start, end, middle):
+                c.brightness = brightness
         seconds = self.clock() - self.start
         ms = int(seconds * 1000)
         out = []
@@ -312,6 +318,61 @@ class Animation:
                 self.warp_cycle = cycle
                 self.warp_start, self.warp_end = self.warp_end, random_color(brightness)
             same(interpolate_color(self.warp_start, self.warp_end, math.fmod(total, 1.0), brightness))
+        elif mode in ("circle", "circleshift"):
+            progress = math.fmod(math.fmod(ms / (speed * 1000), 1.0), 1.0)
+            for j in range(channels):
+                pos = j / channels
+                distance = abs(progress - pos)
+                if distance > 0.5:
+                    distance = 1.0 - distance
+                fade = max(0.0, math.cos(distance * math.pi * 6.0))
+                c = interpolate_colors(start, end, pos, brightness)
+                out += [byte(c.red * fade), byte(c.green * fade), byte(c.blue * fade)]
+        elif mode == "spinner":
+            active = int(math.fmod(ms / (speed * 1000), 1.0) * channels)
+            for j in range(channels):
+                if j == active:
+                    c = interpolate_colors(start, end, active / 40, brightness)
+                    out += [byte(c.red), byte(c.green), byte(c.blue)]
+                else:
+                    out += [0, 0, 0]
         else:
             return bytes(channels * 3)
         return bytes(out)
+
+
+def profiles_view(device, profiles, modes):
+    """GetRgbProfiles: the RGB profiles of a device, only its own modes (GET /api/color/<serial>)."""
+    return {"device": device, "defaultColor": _color_json((255, 255, 255, 1, 0)),
+            "profiles": {k: v for k, v in profiles.items() if k in modes}}
+
+
+def update_profile(profiles, body):
+    """ProcessUpdateRgbProfile + UpdateRgbProfileData (PUT /api/color/change): the colours, speed and
+    gradient of one profile; the colours keep their brightness."""
+    name = str(body.get("profile") or "")
+    if name not in profiles:
+        return "Non-existing RGB profile"
+    try:
+        speed = float(body.get("speed"))
+    except (TypeError, ValueError):
+        return "Invalid speed"
+    if not 1 <= speed <= 10:
+        return "Invalid speed"
+    old = profiles[name]
+    new = dict(old)
+    for key, field in (("start", "startColor"), ("middle", "middleColor"), ("end", "endColor")):
+        color = body.get(field)
+        if not isinstance(color, dict):
+            continue
+        if any(not 0 <= float(color.get(k) or 0) <= 255 for k in ("red", "green", "blue")):
+            return "Invalid color"
+        if not 0 <= float(color.get("temperature") or 0) <= 105:
+            return "Invalid temperature"
+        merged = dict(_color_json(None), **{k: color.get(k, 0) for k in ("red", "green", "blue", "temperature")})
+        merged["brightness"] = (old.get(key) or {}).get("brightness", 0)
+        new[key] = merged
+    new["speed"] = speed
+    new["gradients"] = body.get("colorZones")
+    profiles[name] = new
+    return ""

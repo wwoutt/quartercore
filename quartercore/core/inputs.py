@@ -187,6 +187,22 @@ class Inputs:
         with self.lock:
             self.mouse.send(events + [(EV_SYN, 0, 0)])
 
+    def scroll(self, up):
+        with self.lock:
+            self.mouse.send([(EV_REL, REL_WHEEL, 1 if up else -1), (EV_SYN, 0, 0)])
+
+    def scroll_horizontal(self, left):
+        with self.lock:
+            self.mouse.send([(EV_REL, REL_HWHEEL, 1 if left else -1), (EV_SYN, 0, 0)])
+
+    def zoom(self, zoom_in):
+        """Ctrl + scroll wheel, with 10 ms between the events like InputControlZoom."""
+        with self.lock:
+            for events in (_press(KEY_LEFTCTRL, 1), [(EV_REL, REL_WHEEL, 1 if zoom_in else -1), (EV_SYN, 0, 0)],
+                           _press(KEY_LEFTCTRL, 0)):
+                self.mouse.send(events)
+                self.sleep(0.01)
+
     def text(self, text):
         for char in text or "":
             base = SHIFTED.get(char, char)

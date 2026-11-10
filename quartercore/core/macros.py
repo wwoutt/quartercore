@@ -35,7 +35,8 @@ class Player:
         self.held = {}
         self.stop_repeat = None
 
-    def play(self, macro_id):
+    def play(self, macro_id, keyboard=False):
+        """Plays a macro. keyboard=True repeats keys and mouse buttons like the keyboard drivers do."""
         macro = load(macro_id, self.folder)
         if macro is None:
             return "Invalid macro profile"
@@ -47,11 +48,22 @@ class Player:
             repeat, repeat_delay = int(a.get("actionRepeat") or 0), int(a.get("actionRepeatDelay") or 0)
             if hold:
                 with self.lock:
-                    self.held[int(index)] = command
+                    self.held[int(index)] = (command, kind)
             if kind in KEYBOARD:
-                self.inputs.key(command, hold)
+                if keyboard and repeat > 0 and not hold:
+                    self._repeat(lambda c=command: self.inputs.key(c), repeat, repeat_delay)
+                else:
+                    self.inputs.key(command, hold)
             elif kind == MOUSE:
-                self.inputs.click(command)
+                if keyboard and repeat > 0 and not hold:
+                    for n in range(repeat):
+                        self.inputs.click(command)
+                        if repeat_delay > 0 and repeat > 1:
+                            self.sleep(repeat_delay / 1000)
+                elif keyboard and hold and repeat == 0:
+                    self.inputs.click_hold(command, True)
+                else:
+                    self.inputs.click(command)
             elif kind == DELAY:
                 if int(a.get("actionDelay") or 0) > 0:
                     self.sleep(int(a["actionDelay"]) / 1000)
@@ -64,23 +76,27 @@ class Player:
                 self._move(a, repeat, repeat_delay, hold)
         return ""
 
+    def _repeat(self, action, repeat, repeat_delay):
+        """Repeats an action in the background; a new repeat stops the previous one."""
+        if self.stop_repeat is not None:
+            self.stop_repeat.set()
+        stop = self.stop_repeat = threading.Event()
+
+        def run():
+            for _ in range(repeat):
+                if stop.is_set():
+                    return
+                action()
+                if repeat_delay > 0 and repeat > 1:
+                    self.sleep(repeat_delay / 1000)
+        threading.Thread(target=run, daemon=True).start()
+
     def _move(self, a, repeat, repeat_delay, hold):
         if a.get("mousePositionAbsolute"):
             return              # needs a virtual absolute mouse; not ported yet
         x, y = int(a.get("mousePositionX") or 0), int(a.get("mousePositionY") or 0)
         if repeat > 0 and not hold:
-            if self.stop_repeat is not None:
-                self.stop_repeat.set()
-            stop = self.stop_repeat = threading.Event()
-
-            def run():
-                for _ in range(repeat):
-                    if stop.is_set():
-                        return
-                    self.inputs.move(x, y)
-                    if repeat_delay > 0 and repeat > 1:
-                        self.sleep(repeat_delay / 1000)
-            threading.Thread(target=run, daemon=True).start()
+            self._repeat(lambda: self.inputs.move(x, y), repeat, repeat_delay)
         else:
             self.inputs.move(x, y)
 
@@ -89,4 +105,8 @@ class Player:
         with self.lock:
             held, self.held = self.held, {}
         for index in sorted(held):
-            self.inputs.key_hold(held[index], False)
+            command, kind = held[index]
+            if kind == MOUSE:
+                self.inputs.click_hold(command, False)
+            else:
+                self.inputs.key_hold(command, False)

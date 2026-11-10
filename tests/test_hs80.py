@@ -279,6 +279,8 @@ class Hs80Test(unittest.TestCase):
         time.sleep(0.15)
         self.assertEqual(len(self.dongle.colors()), count)                          # the effect stopped
         self.assertEqual(headset.handle("/api/color", {"profile": "disco"}), "Non-existing RGB profile")
+        self.assertIn("wave", headset.get("/api/color/" + SERIAL)["profiles"])
+        self.assertNotIn("keyboard", headset.get("/api/color/" + SERIAL)["profiles"])
         saved = json.loads((Path(self.tmp.name) / "store" / (SERIAL + ".json")).read_text())
         self.assertEqual(saved["profiles"]["default"]["RGBProfile"], "off")
         self.assertEqual(saved["profiles"]["default"]["ZoneColors"]["0"]["Color"]["Hex"], "#0a141e")

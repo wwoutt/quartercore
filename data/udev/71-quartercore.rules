@@ -13,3 +13,5 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="1d0d", TAG+="ua
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="0a97|2a0f|2a0c", TAG+="uaccess"
 # Virtual keyboard and mouse for button actions and macros (like OpenLinkHub's rule for uinput)
 KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess"
+# K100 keyboards (1b7c, 1bc5, 1b7d): colours, settings, control dial and keys reported to software
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="1b7c|1bc5|1b7d", TAG+="uaccess"

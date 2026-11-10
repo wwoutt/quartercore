@@ -552,6 +552,12 @@ class Hs80:
             return self.save_profile(str(body.get("userProfileName") or ""))
         if method == "DELETE" and path == "/api/userProfile/delete":
             return self.delete_profile(str(body.get("userProfileName") or ""))
+        if method == "PUT" and path == "/api/color/change":
+            error = rgb.update_profile(self.rgb, body)
+            if not error:
+                self._save()
+                self.set_color()
+            return error
         if method != "POST":
             return None
         if path == "/api/userProfile/change":
@@ -647,6 +653,13 @@ class Hs80:
         return None
 
     # --- API ---
+
+    def get(self, path):
+        """GET /api/color/<serial>: the RGB profiles of the headset modes."""
+        self._ensure()
+        if path.rsplit("/", 1)[0] == "/api/color":
+            return rgb.profiles_view(self.product, self.rgb, RGB_MODES)
+        return None
 
     def summary(self):
         return {"Product": self.product, "Serial": self.serial, "Template": "hs80maxW.html"}

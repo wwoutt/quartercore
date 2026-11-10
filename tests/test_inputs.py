@@ -87,6 +87,13 @@ class InputsTest(unittest.TestCase):
         self.inputs.move(5, -3)
         self.assertEqual(self.fake.events(0), [(2, 0, 5), (2, 1, -3), (0, 0, 0)])
 
+    def test_scroll_and_zoom(self):
+        self.inputs.scroll(True)
+        self.inputs.scroll_horizontal(False)
+        self.assertEqual(self.fake.events(0), [(2, 8, 1), (0, 0, 0), (2, 6, -1), (0, 0, 0)])
+        self.inputs.zoom(False)
+        self.assertEqual(self.fake.events(0), [(1, 29, 1), (0, 0, 0), (2, 8, -1), (0, 0, 0), (1, 29, 0), (0, 0, 0)])
+
     def test_text_with_shift(self):
         self.inputs.text("a!")
         keys = [(c, v) for t, c, v in self.fake.events(0) if t == 1]
@@ -118,6 +125,18 @@ class MacroTest(unittest.TestCase):
         self.assertEqual(sleeps, [0.25, 0.1])
         player.release()
         self.assertEqual(fake.calls[-1], ("key_hold", 30, False))
+
+    def test_keyboard_repeats_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "1.json").write_text(json.dumps({"id": 1, "actions": {
+                "0": {"actionType": 9, "actionCommand": 91, "actionRepeat": 2},
+                "1": {"actionType": 9, "actionCommand": 92, "actionHold": True}}}))
+            fake = RecordingInputs()
+            player = macros.Player(fake, tmp, lambda s: None)
+            player.play(1, keyboard=True)
+        self.assertEqual(fake.calls, [("click", 91), ("click", 91), ("click_hold", 92, True)])
+        player.release()
+        self.assertEqual(fake.calls[-1], ("click_hold", 92, False))
 
 
 if __name__ == "__main__":
