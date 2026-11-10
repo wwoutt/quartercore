@@ -49,6 +49,7 @@ def headset_view(device):
         "product": device.get("product") or "",
         "firmware": device.get("firmware") or "",
         "connected": bool(device.get("Connected")),
+        "drivenBy": device.get("DrivenBy") or "OpenLinkHub",
         "battery": int(device.get("BatteryLevel") or 0),
         "userProfile": next((k for k, v in user_profiles.items() if v.get("Active")), ""),
         "userProfiles": order,

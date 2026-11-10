@@ -46,7 +46,8 @@ Flickable {
                 spacing: 0
                 Label { text: hs.product || ""; font.pixelSize: 26 }
                 Label {
-                    text: hs.connected ? qsTr("Battery %1 %").arg(hs.battery || 0) : qsTr("Switched off")
+                    text: (hs.connected ? qsTr("Battery %1 %").arg(hs.battery || 0) : qsTr("Switched off")) + " · "
+                          + (hs.drivenBy === "quartercore-core" ? qsTr("Driven by quartercore-core") : qsTr("Driven by OpenLinkHub"))
                     opacity: 0.6
                 }
             }
@@ -184,6 +185,13 @@ Flickable {
                         onClicked: { headset.setEqualizer(page.eq); page.eq = ({}) }
                     }
                 }
+                Label {
+                    visible: hs.drivenBy === "quartercore-core"
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.6
+                    text: qsTr("quartercore-core saves the equalizer but doesn't apply it yet, like OpenLinkHub with its audio module off.")
+                }
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 0
@@ -290,6 +298,13 @@ Flickable {
                 anchors.fill: parent
                 spacing: 8
                 Label { text: qsTr("Buttons"); font.bold: true }
+                Label {
+                    visible: hs.drivenBy === "quartercore-core"
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.6
+                    text: qsTr("With quartercore-core a button can switch profiles; media keys, keys, mouse buttons and macros come later.")
+                }
                 Repeater {
                     model: hs.buttons || []
                     delegate: RowLayout {

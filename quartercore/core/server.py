@@ -65,7 +65,9 @@ class Core:
                 elif not free and serial in self.owned and listed is not None:
                     # OpenLinkHub drives it again: let go without sending anything
                     self.log("OpenLinkHub drives %s again, letting go" % serial)
-                    if driver.device is not None:
+                    if hasattr(driver, "release"):
+                        driver.release()
+                    elif driver.device is not None:
                         driver.device.close()
                         driver.device = None
                     self.owned.discard(serial)
@@ -144,6 +146,24 @@ def make_handler(core):
             self.end_headers()
             self.wfile.write(data)
 
+        def systray(self):
+            """OpenLinkHub's systray values, with the batteries of the devices driven here."""
+            data = {}
+            if core.openlinkhub_up:
+                try:
+                    with urllib.request.urlopen(core.openlinkhub + "/api/systray", timeout=PROXY_TIMEOUT) as answer:
+                        data = json.loads(answer.read()).get("data") or {}
+                except (OSError, ValueError):
+                    data = {}
+            battery = dict(data.get("battery") or {})
+            with core.lock:
+                for serial in core.owned:
+                    info = getattr(core.drivers[serial], "battery_info", lambda: None)()
+                    if info:
+                        battery[serial] = info
+            data["battery"] = battery
+            self.reply({"code": 200, "status": 1, "data": data})
+
         def do_GET(self):
             path = self.path
             if path == "/api/core":
@@ -166,6 +186,9 @@ def make_handler(core):
                         listed[serial] = core.drivers[serial].summary()
                 self.reply({"code": 200, "status": 0, "devices": listed})
                 return
+            if path == "/api/systray":
+                self.systray()
+                return
             if path.startswith("/api/devices/"):
                 driver = core.driver(path.rsplit("/", 1)[1])
                 if driver is not None:
@@ -173,25 +196,26 @@ def make_handler(core):
                     return
             self.proxy("GET")
 
-        def do_POST(self):
+        def change(self, method):
             raw, body = self.body()
-            driver = core.driver(str(body.get("deviceId") or ""))
+            driver = core.driver(str(body.get("deviceId") or "")) if isinstance(body, dict) else None
             if driver is not None:
-                error = driver.handle(self.path, body)
+                error = driver.handle(self.path, body, method)
                 if error is None:
                     self.reply({"code": 200, "status": 0, "message": "Not supported by quartercore-core yet"})
                 else:
                     self.reply({"code": 200, "status": 0 if error else 1, "message": error or "Done"})
                 return
-            self.proxy("POST", raw)
+            self.proxy(method, raw)
+
+        def do_POST(self):
+            self.change("POST")
 
         def do_PUT(self):
-            raw, _ = self.body()
-            self.proxy("PUT", raw)
+            self.change("PUT")
 
         def do_DELETE(self):
-            raw, _ = self.body()
-            self.proxy("DELETE", raw)
+            self.change("DELETE")
 
     return Handler
 

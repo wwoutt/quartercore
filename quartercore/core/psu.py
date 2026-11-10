@@ -221,8 +221,10 @@ class PowerSupply:
 
     # --- API ---
 
-    def handle(self, path, body):
+    def handle(self, path, body, method="POST"):
         """POST requests of the web page; None when this isn't one of them."""
+        if method != "POST":
+            return None
         if path == "/api/psu/speed":
             try:
                 return self.set_fan_mode(int(body.get("fanMode", -1)))

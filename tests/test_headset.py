@@ -44,6 +44,23 @@ class HeadsetViewTest(unittest.TestCase):
         self.assertEqual(v["equalizer"][9]["name"], "16K")
         self.assertEqual(v["buttons"][0]["name"], "Scroll Press")
         self.assertEqual({o["value"]: o["name"] for o in v["buttonTypes"]}[11], "Profile switch")
+        self.assertEqual(v["drivenBy"], "OpenLinkHub")
+
+    def test_view_of_the_core_driver(self):
+        # quartercore-core's HS80 driver answers in the same format
+        from quartercore.core import hs80
+        from quartercore.core.store import Store
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            info = {"node": "/dev/null", "product": 0x0A97, "interface": 4, "usbPath": "/x"}
+            driver = hs80.Hs80(info, Store(Path(tmp) / "s", Path(tmp) / "o"), serial="ABC")
+            v = headset_view(driver.device_json())
+        self.assertEqual((v["serial"], v["drivenBy"], v["rgbMode"], v["userProfiles"]),
+                         ("ABCW", "quartercore-core", "headset", ["default"]))
+        self.assertEqual([z["color"] for z in v["zones"]], ["#ffff00", "#00ffff"])
+        self.assertEqual([o["value"] for o in v["sleepModes"]], [0, 1, 5, 10, 15, 30, 60])
+        self.assertEqual(len(v["equalizer"]), 10)
+        self.assertEqual(v["buttons"][0]["name"], "Scroll Press")
 
     def test_bodies(self):
         self.assertEqual(button_body("HS1", 1, {"type": 1, "value": 2, "enabled": False}), {

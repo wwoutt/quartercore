@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.12 has:
+- Version 0.13 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -129,6 +129,14 @@ it drives:
   own curve.
 - **The XENEON EDGE screen**: brightness, contrast, backlight and colour tones.
   On stop it gets the values OpenLinkHub sets when it stops.
+- **The HS80 MAX WIRELESS headset** (through its USB dongle): battery, device
+  profiles, the RGB effects (zone colours, static, off and the animated effects,
+  ported from OpenLinkHub), brightness, mic LED, sidetone, sleep timer and the
+  button as "Profile switch". On stop the dongle and headset go back to hardware
+  mode. Not yet: media keys, keys, mouse buttons and macros on the button (they
+  need uinput, step E); the equalizer is saved but not applied, as OpenLinkHub
+  does with its audio module off; muting only changes the mic LED. On the first
+  start it takes over OpenLinkHub's headset profiles, button and RGB settings.
 
 It only takes over a device when OpenLinkHub runs and leaves that device alone,
 so the two never drive the same device. `./install.sh` installs it, but it
@@ -156,13 +164,22 @@ sudo systemctl restart OpenLinkHub
 ```
 quartercore-core takes it over within ten seconds. Back: the same with `true`
 and a restart of OpenLinkHub.
+
+**Switch the HS80 MAX WIRELESS over** (product id 2711 is its dongle):
+```bash
+sudo install -m 644 data/udev/71-quartercore.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
+curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"2711": false}}'
+sudo systemctl restart OpenLinkHub
+```
+Back: the same with `true` and a restart of OpenLinkHub.
 `curl -s http://127.0.0.1:27013/api/core` shows which devices it drives, and
 `journalctl --user -u quartercore-core` what it did.
 
 **Back to OpenLinkHub:**
 ```bash
 systemctl --user disable --now quartercore-core
-curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"7199": true}}'
+curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"7199": true, "7437": true, "2711": true}}'
 sudo systemctl restart OpenLinkHub
 ```
 and set the address back to `http://127.0.0.1:27003`.

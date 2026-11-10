@@ -291,7 +291,7 @@ class FakeDriver:
         self.fan = mode
         return ""
 
-    def handle(self, path, body):
+    def handle(self, path, body, method="POST"):
         if path == "/api/psu/speed":
             return self.set_fan_mode(int(body.get("fanMode", -1)))
         return None

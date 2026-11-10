@@ -134,8 +134,10 @@ class XeneonEdge:
                 "userProfiles": {"default": {"Active": True}},
                 "DrivenBy": "quartercore-core", "Error": self.error}
 
-    def handle(self, path, body):
+    def handle(self, path, body, method="POST"):
         """POST requests of the web page (overview.js); None when this isn't one of them."""
+        if method != "POST":
+            return None
         def number(key):
             try:
                 return int(body.get(key))
