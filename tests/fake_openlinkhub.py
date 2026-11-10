@@ -71,10 +71,34 @@ HUB = {
 }
 
 
+def psu_channel(channel, name, **values):
+    base = {"channelId": channel, "name": name, "label": name, "rpm": 0, "volts": 0, "amps": 0, "watts": 0,
+            "temperatureString": "", "HasSpeed": False, "HasTemps": False, "HasWatts": False, "HasVolts": False,
+            "MainPSU": False}
+    base.update(values)
+    return base
+
+
+PSU = {
+    "serial": "PSU1", "product": "HX1500i", "Template": "psuhid.html", "InputVoltage": 230,
+    "DeviceProfile": {"FanMode": 0},
+    "FanModes": {"0": "Default", "4": "40 %", "10": "100 %"},
+    "devices": {
+        "0": psu_channel(0, "HX1500i", watts=110, HasWatts=True, MainPSU=True),
+        "1": psu_channel(1, "Fan 1", rpm=0, HasSpeed=True),
+        "2": psu_channel(2, "PSU Temperature", temperatureString="40.2 °C", HasTemps=True),
+        "4": psu_channel(4, "Power Out", watts=92, HasWatts=True),
+        "5": psu_channel(5, "12V Rail", volts=12.15, amps=7.25, watts=82, HasWatts=True, HasVolts=True),
+        "6": psu_channel(6, "5V Rail", volts=5.09, amps=2, watts=10, HasWatts=True, HasVolts=True),
+    },
+}
+
+
 class State:
     def __init__(self):
         self.profiles = initial_profiles()
         self.effects = {"HUB1": initial_effects(), "KB1": initial_effects()}
+        self.psu = copy.deepcopy(PSU)
         self.requests = []
         self.lock = threading.Lock()
 
@@ -122,7 +146,9 @@ class Handler(BaseHTTPRequestHandler):
                 "PSU1": {"Product": "HX1500i"}}})
         elif self.path == "/api/devices/HUB1":
             self.reply({"code": 200, "status": 0, "device": HUB})
-        elif self.path in ("/api/devices/KB1", "/api/devices/PSU1"):
+        elif self.path == "/api/devices/PSU1":
+            self.reply({"code": 200, "status": 0, "device": s.psu})
+        elif self.path == "/api/devices/KB1":
             self.reply({"code": 200, "status": 0, "device": {"product": "Other", "Template": "other.html"}})
         elif self.path.startswith("/api/color/"):
             serial = self.path.rsplit("/", 1)[1]
@@ -178,6 +204,13 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("POST", self.path, body))
+            if self.path == "/api/psu/speed":
+                if body.get("deviceId") != "PSU1" or not 0 <= body.get("fanMode", -1) <= 10:
+                    self.refuse("Invalid fan mode")
+                    return
+                s.psu["DeviceProfile"]["FanMode"] = body["fanMode"]
+                self.ok("Fan mode is changed")
+                return
             if self.path == "/api/temperatures/new":
                 name = body.get("profile", "")
                 if name in s.profiles:

@@ -14,7 +14,7 @@ SYSTEM_INTERVAL_MS = 2000
 DEVICE_LIST_INTERVAL_MS = 15000
 
 # Device pages built into this app, by the OpenLinkHub web template they replace
-NATIVE_TEMPLATES = {"lsh.html": "linkhub"}
+NATIVE_TEMPLATES = {"lsh.html": "linkhub", "psuhid.html": "psu"}
 NO_LABEL = "Set Label"
 
 
@@ -52,6 +52,42 @@ def link_hub_view(device):
         "rgbModes": list(device.get("RGBModes") or []),
         "channels": channels,
     }
+
+
+def number(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def psu_view(device):
+    """Power supply measurements grouped like the OpenLinkHub page, plus the fan mode."""
+    profile = device.get("DeviceProfile") or {}
+    modes = sorted(((int(k), v) for k, v in (device.get("FanModes") or {}).items()), key=lambda kv: kv[0])
+    view = {
+        "serial": device.get("serial") or "",
+        "product": device.get("product") or "",
+        "inputVoltage": number(device.get("InputVoltage")),
+        "fanMode": int(profile.get("FanMode") or 0),
+        "fanModes": [{"value": k, "name": v} for k, v in modes],
+        "power": 0.0, "outputPower": 0.0, "fans": [], "temperatures": [], "rails": [],
+    }
+    channels = sorted((device.get("devices") or {}).values(), key=lambda c: int(c.get("channelId") or 0))
+    for ch in channels:
+        name = ch.get("name") or ch.get("label") or ""
+        if ch.get("MainPSU"):
+            view["power"] = number(ch.get("watts"))
+        elif ch.get("HasSpeed"):
+            view["fans"].append({"name": name, "rpm": int(number(ch.get("rpm")))})
+        elif ch.get("HasTemps"):
+            view["temperatures"].append({"name": name, "value": ch.get("temperatureString") or ""})
+        elif ch.get("HasVolts"):
+            view["rails"].append({"name": name, "volts": number(ch.get("volts")),
+                                  "amps": number(ch.get("amps")), "watts": number(ch.get("watts"))})
+        elif ch.get("HasWatts"):
+            view["outputPower"] = number(ch.get("watts"))
+    return view
 
 
 class Backend(QObject):
@@ -213,8 +249,12 @@ class Backend(QObject):
             device = data.get("device") or {}
             self._templates[serial] = device.get("Template") or ""
             page = self._page(serial)
-            view = link_hub_view(device) if page == "linkhub" else {
-                "serial": serial, "product": device.get("product") or serial}
+            if page == "linkhub":
+                view = link_hub_view(device)
+            elif page == "psu":
+                view = psu_view(device)
+            else:
+                view = {"serial": serial, "product": device.get("product") or serial}
             self._active = dict(view, page=page)
             self.activeChanged.emit()
         self.api.get("/api/devices/" + serial, done)
@@ -294,6 +334,10 @@ class Backend(QObject):
     def setBrightness(self, value):
         self._change("/api/brightness/gradual", {"deviceId": self._active_serial,
                                                  "brightness": max(0, min(100, int(value)))})
+
+    @Slot(int)
+    def setPsuFanMode(self, mode):
+        self._change("/api/psu/speed", {"deviceId": self._active_serial, "fanMode": int(mode)})
 
     @Slot(str)
     def setServerUrl(self, url):

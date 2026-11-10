@@ -116,5 +116,14 @@
   "at": "bij",
   "fast": "snel",
   "slow": "langzaam",
-  "to": "tot"
+  "to": "tot",
+  "Current": "Stroom",
+  "Default lets the power supply control its fan. A percentage keeps the fan at that speed.": "Bij Default regelt de voeding zelf de ventilator. Met een percentage blijft de ventilator op die snelheid.",
+  "Fan mode": "Ventilatorstand",
+  "Input voltage %1 V": "Ingangsspanning %1 V",
+  "Output power": "Afgegeven vermogen",
+  "Power": "Vermogen",
+  "Rail": "Rail",
+  "Voltage": "Spanning",
+  "stopped, the fan starts when needed": "stil, de ventilator start als het nodig is"
 }
