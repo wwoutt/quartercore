@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.10 has:
+- Version 0.11 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -115,6 +115,39 @@ not audited by an independent developer.
 ./install.sh --remove   # uninstalls
 ```
 Or run it from the source folder: `python3 -m quartercore [--url http://host:port]`.
+
+## quartercore-core: devices without OpenLinkHub (test phase)
+`quartercore-core` is a small service that drives devices itself and passes
+everything else on to OpenLinkHub ([ROADMAP.md](ROADMAP.md), part 2). It speaks
+the same API, so the Quartercore window only needs its address changed. So far
+it drives **Corsair HID power supplies** (HX1500i and the others OpenLinkHub
+supports): readings from the kernel driver `corsair-psu` when it is loaded,
+otherwise over USB, and the fan mode over USB. On stop the fan goes back to the
+power supply's own curve.
+
+It only takes over a device when OpenLinkHub runs and leaves that device alone,
+so the two never drive the same device. `./install.sh` installs it, but it
+doesn't start until you enable it.
+
+**Switch the power supply over** (product id 7199 is the HX1500i):
+```bash
+sudo install -m 644 data/udev/71-quartercore.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
+curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"7199": false}}'
+sudo systemctl restart OpenLinkHub
+systemctl --user enable --now quartercore-core
+```
+Then set the address in Quartercore's settings to `http://127.0.0.1:27013`.
+`curl -s http://127.0.0.1:27013/api/core` shows which devices it drives, and
+`journalctl --user -u quartercore-core` what it did.
+
+**Back to OpenLinkHub:**
+```bash
+systemctl --user disable --now quartercore-core
+curl -s -X POST http://127.0.0.1:27003/api/setSupportedDevices -d '{"supportedDevices": {"7199": true}}'
+sudo systemctl restart OpenLinkHub
+```
+and set the address back to `http://127.0.0.1:27003`.
 
 ## Tested on
 Bazzite 44 (Fedora Atomic), KDE Plasma 6, PySide6 6.11, OpenLinkHub 0.9.4 with an

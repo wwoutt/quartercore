@@ -1,0 +1,9 @@
+# Lets the logged-in user use Corsair HID power supplies, for quartercore-core
+# Author: wwoutt (2026-11-10), written by Claude (Anthropic)
+# License: GPL-3.0 or later
+#
+# Install: sudo install -m 644 data/udev/71-quartercore.rules /etc/udev/rules.d/
+#          sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
+# uaccess gives the user at the seat access (an ACL); it must run before 73-seat-late.rules.
+# Product ids: OpenLinkHub's Psu list (HX750i, HX850i, HX1000i, HX1200i, HX1500i, RM850i, RM1000i).
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="1c05|1c06|1c07|1c08|1c0c|1c0d|1c1e|1c1f|1c23|1c27", TAG+="uaccess"

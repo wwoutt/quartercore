@@ -1,0 +1,19 @@
+# quartercore-core: drives devices itself and passes the rest on to OpenLinkHub
+# Author: wwoutt (2026-11-10), written by Claude (Anthropic)
+# License: GPL-3.0 or later
+#
+# A user service: systemctl --user enable --now quartercore-core
+
+[Unit]
+Description=Quartercore core service (devices taken over from OpenLinkHub)
+After=graphical-session-pre.target
+
+[Service]
+ExecStart=%h/.local/bin/quartercore-core
+Restart=on-failure
+RestartSec=3
+# On stop the power supply fan goes back to its own curve
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target
