@@ -13,7 +13,7 @@ import copy
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from PySide6.QtCore import Property, QObject, QTimer, QUrl, QUrlQuery, Signal, Slot
 from PySide6.QtNetwork import QNetworkRequest
@@ -358,7 +358,12 @@ def weather_view(data, settings, now=None):
     is_day = current.get("is_day") == 1
     unit = "°F" if settings.get("unit") == "°F" else "°C"
     forecast = []
-    now = now or datetime.now()
+    if now is None:
+        # The hours are in the time zone of the city (timezone=auto); compare them
+        # with the time there, not with the time here
+        offset = data.get("utc_offset_seconds")
+        now = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=offset)
+               if offset is not None else datetime.now())
     for t, temperature in zip(hourly.get("time") or [], hourly.get("temperature_2m") or []):
         try:
             moment = datetime.fromisoformat(t)

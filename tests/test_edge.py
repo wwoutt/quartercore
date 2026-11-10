@@ -111,6 +111,13 @@ class WidgetDataTest(unittest.TestCase):
         self.assertEqual((view["icon"], view["temperature"], view["feelsLike"]), ("🌙", "12", "10°C"))
         self.assertEqual(view["forecast"][0], {"time": "11:00", "temp": "10°"})
         self.assertEqual(view["forecast"][1]["time"], "--:--")
+        # Without a given time: the hours count in the city's own time zone
+        from datetime import timedelta, timezone
+        city_now = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=6)
+        hours = [(city_now + timedelta(hours=h)).strftime("%Y-%m-%dT%H:00") for h in range(1, 6)]
+        far = e.weather_view({"current": {}, "utc_offset_seconds": -6 * 3600,
+                              "hourly": {"time": hours, "temperature_2m": [1, 2, 3, 4, 5]}}, {})
+        self.assertEqual([f["temp"] for f in far["forecast"]], ["1°", "2°", "3°", "4°"])
         q = e.weather_query({"latitude": 1, "longitude": 2, "unit": "°F"})
         self.assertEqual((q["temperature_unit"], q["forecast_hours"]), ("fahrenheit", 8))
 
