@@ -443,5 +443,16 @@ class EditorMouseTest(unittest.TestCase):
         self.assertTrue(result["dirty"])
 
 
+class KioskWindowTest(unittest.TestCase):
+    def test_the_kiosk_window_stays(self):
+        """The kiosk closed a second after opening the layout editor: QML deleted the window."""
+        import subprocess
+        script = Path(__file__).resolve().parent / "window_check.py"
+        out = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=60)
+        line = [l for l in out.stdout.splitlines() if l.startswith("{")]
+        self.assertTrue(line, out.stderr[-2000:])
+        self.assertEqual(json.loads(line[-1]), {"made": True, "alive": True, "kept": 1})
+
+
 if __name__ == "__main__":
     unittest.main()

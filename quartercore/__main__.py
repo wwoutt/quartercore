@@ -33,6 +33,18 @@ HERE = Path(__file__).resolve().parent
 INSTANCE = "quartercore-" + getpass.getuser()
 
 
+def create_window(engine, context, path, keep):
+    """Makes a window from a QML file. The component goes into keep: when it is
+    deleted, Qt deletes the window too (the XENEON EDGE kiosk closed after a second)."""
+    component = QQmlComponent(engine, QUrl.fromLocalFile(str(path)))
+    window = component.create(context)
+    if window is None:
+        print(component.errorString(), file=sys.stderr)
+        return None
+    keep.append(component)
+    return window
+
+
 def already_running():
     """Asks a running Quartercore to show its window; True when there is one."""
     socket = QLocalSocket()
@@ -136,6 +148,7 @@ def main():
 
     # The native XENEON EDGE kiosk, made when it is first turned on
     edge_window = []
+    edge_component = []
 
     def edge_screen():
         screen = find_edge_screen(app.screens())
@@ -146,10 +159,8 @@ def main():
         screen = edge_screen()
         wanted = settings.edgeKiosk and screen is not None and not args.screenshot
         if wanted and not edge_window:
-            component = QQmlComponent(engine, QUrl.fromLocalFile(str(HERE / "qml" / "EdgeWindow.qml")))
-            created = component.create(context)
+            created = create_window(engine, context, HERE / "qml" / "EdgeWindow.qml", edge_component)
             if created is None:
-                print(component.errorString(), file=sys.stderr)
                 return
             edge_window.append(created)
         if not edge_window:
@@ -185,11 +196,10 @@ def main():
                 QTimer.singleShot(3000, lambda: edge_editor.select("widget:" + profile))
         elif args.page == "kiosk":
             # Renders the kiosk at 2560 x 720, also without a XENEON EDGE screen
-            component = QQmlComponent(engine, QUrl.fromLocalFile(str(HERE / "qml" / "EdgeWindow.qml")))
-            edge_window.append(component.create(context))
-            if edge_window[0] is None:
-                print(component.errorString(), file=sys.stderr)
+            created = create_window(engine, context, HERE / "qml" / "EdgeWindow.qml", edge_component)
+            if created is None:
                 return 1
+            edge_window.append(created)
             edge_window[0].show()
             window = edge_window[0]
         elif args.page:
