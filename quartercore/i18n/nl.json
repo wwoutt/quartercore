@@ -398,5 +398,8 @@
   "Reset the XENEON EDGE?": "De XENEON EDGE terugzetten?",
   "Screen": "Scherm",
   "The factory values are red 150, green 126 and blue 140.": "De fabriekswaarden zijn rood 150, groen 126 en blauw 140.",
-  "quartercore-core saves the equalizer but doesn't apply it yet, like OpenLinkHub with its audio module off.": "quartercore-core bewaart de equalizer maar past hem nog niet toe, net als OpenLinkHub met de audiomodule uit."
+  "quartercore-core saves the equalizer but doesn't apply it yet, like OpenLinkHub with its audio module off.": "quartercore-core bewaart de equalizer maar past hem nog niet toe, net als OpenLinkHub met de audiomodule uit.",
+  "quartercore-core: %1 %": "quartercore-core: %1 %",
+  "The speed quartercore-core would set. Orange: with OpenLinkHub's temperature it would be different.": "De snelheid die quartercore-core zou instellen. Oranje: met de temperatuur van OpenLinkHub zou die anders zijn.",
+  "quartercore-core works out the speeds alongside OpenLinkHub and sends nothing to the hub. CPU %1 °C (OpenLinkHub: %2 °C).": "quartercore-core rekent de snelheden mee uit naast OpenLinkHub en stuurt niets naar de hub. CPU %1 °C (OpenLinkHub: %2 °C)."
 }

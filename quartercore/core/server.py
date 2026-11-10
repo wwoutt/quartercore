@@ -27,7 +27,7 @@ PROXY_TIMEOUT = 10
 
 
 class Core:
-    def __init__(self, openlinkhub, discover, standalone=False, log=print, macros=None):
+    def __init__(self, openlinkhub, discover, standalone=False, log=print, macros=None, shadow=None):
         self.openlinkhub = openlinkhub.rstrip("/")
         self.discover = discover
         self.standalone = standalone
@@ -37,7 +37,9 @@ class Core:
         self.owned = set()       # serials quartercore-core drives now
         self.openlinkhub_up = False
         self.stopping = threading.Event()
+        self.shadow_interval = 3
         self.macros = macros     # the macro store; without one, macro requests go on to OpenLinkHub
+        self.shadow = shadow     # works out the LINK hub's speeds while OpenLinkHub drives it (step F1)
 
     # --- OpenLinkHub ---
 
@@ -80,8 +82,11 @@ class Core:
                     self.owned.discard(serial)
 
     def run(self):
-        last_check = 0
+        last_check = last_shadow = 0
         while not self.stopping.is_set():
+            if self.shadow is not None and self.openlinkhub_up and time.monotonic() - last_shadow >= self.shadow_interval:
+                last_shadow = time.monotonic()
+                self.shadow.tick()
             if time.monotonic() - last_check >= CHECK_INTERVAL:
                 last_check = time.monotonic()
                 try:
@@ -153,6 +158,18 @@ def make_handler(core):
             self.end_headers()
             self.wfile.write(data)
 
+        def device_with_shadow(self, path, shadow):
+            """OpenLinkHub's device, with the speeds quartercore-core would set (QuartercoreShadow)."""
+            try:
+                with urllib.request.urlopen(core.openlinkhub + path, timeout=PROXY_TIMEOUT) as answer:
+                    data = json.loads(answer.read())
+            except (OSError, ValueError):
+                return False
+            if isinstance(data.get("device"), dict):
+                data["device"]["QuartercoreShadow"] = shadow
+            self.reply(data)
+            return True
+
         def systray(self):
             """OpenLinkHub's systray values, with the batteries of the devices driven here."""
             data = {}
@@ -208,10 +225,18 @@ def make_handler(core):
             if path == "/api/systray":
                 self.systray()
                 return
+            if path == "/api/core/cooling":
+                status = core.shadow.status() if core.shadow is not None else {"hubs": {}}
+                self.reply({"code": 200, "status": 1, "data": status})
+                return
             if path.startswith("/api/devices/"):
-                driver = core.driver(path.rsplit("/", 1)[1])
+                serial = path.rsplit("/", 1)[1]
+                driver = core.driver(serial)
                 if driver is not None:
                     self.reply({"code": 200, "status": 0, "device": driver.device_json()})
+                    return
+                shadow = core.shadow.status(serial) if core.shadow is not None else None
+                if shadow is not None and self.device_with_shadow(path, shadow):
                     return
             # Other reads with the serial at the end (/api/color/<serial>, /api/keyboard/.../<serial>)
             driver = core.driver(path.rsplit("/", 1)[-1])

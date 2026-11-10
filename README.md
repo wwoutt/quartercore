@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.16 has:
+- Version 0.17 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -149,6 +149,13 @@ it drives:
 - **A virtual keyboard and mouse** (`/dev/uinput`) for button actions and macros,
   made the first time a button needs them. Moving the mouse to an absolute
   position isn't ported yet.
+- **The iCUE LINK System Hub, watching only** (step F1): while OpenLinkHub drives
+  the hub, quartercore-core works out every 3 seconds the fan and pump speeds it
+  would set (OpenLinkHub's curves and failsafes), with its own temperatures and
+  with OpenLinkHub's. It sends nothing to the hub. The hub page shows the speed
+  under each fan (orange when the two differ), and the changes are written to
+  `~/.local/state/Quartercore/cooling-shadow.jsonl`; `GET /api/core/cooling`
+  gives the latest values.
 - **Macros**: made, changed and played by quartercore-core, stored in
   `~/.config/Quartercore/core/macros/` (OpenLinkHub's macros are copied the first
   time). A new step gets the next free number, so it never replaces a step after

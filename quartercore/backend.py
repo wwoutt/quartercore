@@ -31,9 +31,12 @@ def channel_sort_key(channel):
 def link_hub_view(device):
     """The LINK System Hub fields the page shows."""
     profile = device.get("DeviceProfile") or {}
+    shadow = device.get("QuartercoreShadow") or {}
     channels = []
     for channel_id, ch in (device.get("devices") or {}).items():
         label = ch.get("label") or ""
+        planned = (shadow.get("channels") or {}).get(str(ch.get("channelId", channel_id))) or {}
+        theirs = (shadow.get("openlinkhubChannels") or {}).get(str(ch.get("channelId", channel_id))) or {}
         channels.append({
             "channelId": int(channel_id),
             "name": ch.get("name") or "",
@@ -45,6 +48,10 @@ def link_hub_view(device):
             "rgbProfile": ch.get("rgb") or "",
             "hasSpeed": bool(ch.get("HasSpeed")),
             "isProbe": bool(ch.get("IsTemperatureProbe")),
+            # Step F1: the speed quartercore-core works out (-1: none), and whether it differs from the one
+            # it works out with OpenLinkHub's temperatures
+            "shadowSpeed": planned.get("speed") if planned.get("speed") is not None else -1,
+            "shadowDiffers": planned.get("speed") != theirs.get("speed"),
         })
     channels.sort(key=channel_sort_key)
     return {
@@ -54,6 +61,9 @@ def link_hub_view(device):
         "brightness": int(profile.get("BrightnessSlider") or 0),
         "rgbModes": list(device.get("RGBModes") or []),
         "channels": channels,
+        "shadow": bool(shadow),
+        "shadowCpu": shadow.get("cpu") or 0,
+        "shadowOpenLinkHubCpu": shadow.get("openlinkhubCpu") or 0,
     }
 
 

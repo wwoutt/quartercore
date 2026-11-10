@@ -69,3 +69,11 @@ class Temperatures:
         except (OSError, ValueError, IndexError, subprocess.SubprocessError):
             self.gpu_value = 0.0
         return self.gpu_value
+
+
+def hwmon_input(path):
+    """GetHwMonTemperature: a hwmon temp*_input file in millidegrees, rounded to 0.01 degree."""
+    try:
+        return round(int(Path(path).read_text().strip()) / 10.0) / 100.0
+    except (OSError, ValueError):
+        return 0.0

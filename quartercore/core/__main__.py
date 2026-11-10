@@ -7,7 +7,7 @@ import signal
 import sys
 import threading
 
-from . import hs80, inputs, k100, macros, psu, xeneon
+from . import cooling, hs80, inputs, k100, macros, psu, xeneon
 from .server import Core, serve
 from .store import Store
 
@@ -28,7 +28,8 @@ def main(argv=None):
     def log(text):
         print(text, flush=True)
 
-    core = Core(args.openlinkhub, lambda: psu.discover(store) + xeneon.discover(store) + hs80.discover(store) + k100.discover(store), args.standalone, log, macros.shared_store())
+    core = Core(args.openlinkhub, lambda: psu.discover(store) + xeneon.discover(store) + hs80.discover(store) + k100.discover(store), args.standalone, log, macros.shared_store(),
+                cooling.Shadow(args.openlinkhub))
     server = serve(core, args.port)
 
     def shutdown(*_):

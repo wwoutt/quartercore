@@ -100,6 +100,18 @@ Flickable {
             }
         }
 
+        // Step F1: quartercore-core works out the speeds alongside OpenLinkHub
+        Label {
+            visible: !!hub.shadow
+            Layout.fillWidth: true
+            Layout.leftMargin: 24
+            Layout.rightMargin: 24
+            wrapMode: Text.WordWrap
+            opacity: 0.7
+            text: qsTr("quartercore-core works out the speeds alongside OpenLinkHub and sends nothing to the hub. CPU %1 °C (OpenLinkHub: %2 °C).")
+                  .arg(Number(hub.shadowCpu || 0).toFixed(1)).arg(Number(hub.shadowOpenLinkHubCpu || 0).toFixed(1))
+        }
+
         Label {
             text: qsTr("%1 connected devices").arg(channels.count)
             font.pixelSize: 18

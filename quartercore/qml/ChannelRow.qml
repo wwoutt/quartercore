@@ -55,6 +55,17 @@ Frame {
                 visible: temperature !== ""
                 opacity: 0.7
             }
+            // Step F1: what quartercore-core would set (it sends nothing to the hub yet)
+            Label {
+                visible: hasSpeed && shadowSpeed >= 0
+                text: qsTr("quartercore-core: %1 %").arg(shadowSpeed)
+                font.pixelSize: 12
+                color: shadowDiffers ? "#f67400" : palette.windowText
+                opacity: shadowDiffers ? 1 : 0.6
+                ToolTip.visible: shadowArea.containsMouse
+                ToolTip.text: qsTr("The speed quartercore-core would set. Orange: with OpenLinkHub's temperature it would be different.")
+                MouseArea { id: shadowArea; anchors.fill: parent; hoverEnabled: true }
+            }
         }
 
         ColumnLayout {
