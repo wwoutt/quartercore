@@ -94,11 +94,42 @@ PSU = {
 }
 
 
+def key(name, width=65, left=15, top=15, height=70, css="", color=(0, 255, 0), **flags):
+    return dict({"keyName": name, "width": width, "height": height, "left": left, "top": top, "css": css,
+                 "color": rgb(*color), "onlyColor": False, "noColor": False}, **flags)
+
+
+def initial_keyboard():
+    led = dict(width=10, height=40, left=0, top=0, onlyColor=True)
+    keys = {
+        "0": {"keys": {"1": key("", width=80, left=0, top=0, height=20, css="keyboard-key wide100", onlyColor=True),
+                       "2": key("", width=80, left=10, top=0, height=20, css="keyboard-key wide100", onlyColor=True)}},
+        "1": {"keys": {"3": key("", css="keyboard-key left-led-1", **led),
+                       "4": key("ESC"), "5": key("F1", left=95), "6": key("WH +", noColor=True),
+                       "7": key("", css="keyboard-key right-led-1", **led)}},
+        "2": {"keys": {"8": key("", css="keyboard-key left-led-2", **led),
+                       "9": key("Tab", width=108), "10": key("Q", color=(255, 0, 0)), "11": key("+", height=155),
+                       "12": key("", css="keyboard-key right-led-2", **led)}},
+    }
+    return {
+        "serial": "KB1", "product": "K100", "firmware": "1.15", "Template": "k100.html",
+        "userProfiles": {"default": {"Active": True}, "work": {"Active": False}},
+        "DeviceProfile": {"Profile": "default", "Profiles": ["default", "Gaming"], "RGBProfile": "static",
+                          "Layout": "US", "PollingRate": 4, "ControlDial": 1, "DebounceTime": 1,
+                          "Keyboards": {"default": {"row": keys}, "Gaming": {"row": copy.deepcopy(keys)}}},
+        "RGBModes": ["keyboard", "rainbow", "static"], "Layouts": ["US", "DE"],
+        "PollingRates": {"0": "Not Set", "4": "1000 Hz / 1 msec", "7": "8000 Hz / 0.125 msec"},
+        "ControlDialOptions": {"1": "Volume Control", "2": "Brightness"},
+        "DebounceTimes": {"1": "1ms", "2": "2ms"},
+    }
+
+
 class State:
     def __init__(self):
         self.profiles = initial_profiles()
         self.effects = {"HUB1": initial_effects(), "KB1": initial_effects()}
         self.psu = copy.deepcopy(PSU)
+        self.keyboard = initial_keyboard()
         self.requests = []
         self.lock = threading.Lock()
 
@@ -149,7 +180,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/devices/PSU1":
             self.reply({"code": 200, "status": 0, "device": s.psu})
         elif self.path == "/api/devices/KB1":
-            self.reply({"code": 200, "status": 0, "device": {"product": "Other", "Template": "other.html"}})
+            self.reply({"code": 200, "status": 0, "device": s.keyboard})
         elif self.path.startswith("/api/color/"):
             serial = self.path.rsplit("/", 1)[1]
             if serial not in s.effects:
@@ -166,11 +197,61 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.reply({"code": 200, "status": 1, "data": "40.0 °C"})
 
+    def keyboard_change(self, body):
+        """Applies a keyboard request to the fake state, with the checks OpenLinkHub does."""
+        kb = self.state.keyboard
+        profile = kb["DeviceProfile"]
+        name = body.get("keyboardProfileName", "")
+        if self.path == "/api/keyboard/color":
+            if body.get("keyOption") != 3 or not body.get("keys"):
+                self.refuse("Invalid key selected")
+                return
+            for row in profile["Keyboards"][profile["Profile"]]["row"].values():
+                for key_id, k in row["keys"].items():
+                    if int(key_id) in body["keys"]:
+                        k["color"] = rgb(body["color"]["red"], body["color"]["green"], body["color"]["blue"])
+        elif self.path == "/api/color":
+            profile["RGBProfile"] = body["profile"]
+        elif self.path == "/api/keyboard/profile/change":
+            if name not in profile["Profiles"]:
+                self.refuse("Non-existing profile")
+                return
+            profile["Profile"] = name
+        elif self.path == "/api/keyboard/profile/new":
+            if not name.isalnum():
+                self.refuse("Profile name can only contain letters and numbers")
+                return
+            profile["Keyboards"][name] = copy.deepcopy(profile["Keyboards"][profile["Profile"]])
+            profile["Profiles"].append(name)
+            profile["Profile"] = name
+        elif self.path == "/api/keyboard/profile/delete":
+            if name == "default" or name not in profile["Profiles"]:
+                self.refuse("Unable to delete profile")
+                return
+            profile["Profiles"].remove(name)
+            del profile["Keyboards"][name]
+            profile["Profile"] = "default"
+        elif self.path == "/api/userProfile/change":
+            for key_name, p in kb["userProfiles"].items():
+                p["Active"] = key_name == body["userProfileName"]
+        elif self.path == "/api/keyboard/layout":
+            profile["Layout"] = body["keyboardLayout"]
+        elif self.path == "/api/keyboard/pollingRate":
+            profile["PollingRate"] = body["pollingRate"]
+        elif self.path == "/api/keyboard/dial":
+            profile["ControlDial"] = body["keyboardControlDial"]
+        elif self.path == "/api/keyboard/debounceTime":
+            profile["DebounceTime"] = body["debounceTime"]
+        self.ok("Done")
+
     def do_PUT(self):
         s = self.state
         body = self.body()
         with s.lock:
             s.requests.append(("PUT", self.path, body))
+            if self.path.startswith("/api/keyboard/"):
+                self.keyboard_change(body)
+                return
             if self.path == "/api/color/change":
                 fx = s.effects.get(body.get("deviceId"), {}).get(body.get("profile"))
                 if fx is None:
@@ -204,6 +285,10 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("POST", self.path, body))
+            if self.path.startswith("/api/keyboard/") or self.path == "/api/userProfile/change" or (
+                    self.path == "/api/color" and body.get("deviceId") == "KB1"):
+                self.keyboard_change(body)
+                return
             if self.path == "/api/psu/speed":
                 if body.get("deviceId") != "PSU1" or not 0 <= body.get("fanMode", -1) <= 10:
                     self.refuse("Invalid fan mode")
@@ -229,6 +314,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("DELETE", self.path, body))
+            if self.path.startswith("/api/keyboard/"):
+                self.keyboard_change(body)
+                return
             if s.profiles.pop(body.get("profile"), None) is None:
                 self.refuse("Non-existing speed profile")
             else:

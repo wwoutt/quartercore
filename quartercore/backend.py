@@ -9,6 +9,7 @@ from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 from .api import ApiClient
+from .keyboard import is_keyboard, keyboard_view
 
 SYSTEM_INTERVAL_MS = 2000
 DEVICE_LIST_INTERVAL_MS = 15000
@@ -90,6 +91,14 @@ def psu_view(device):
     return view
 
 
+def page_kind(device):
+    """Which page shows this device: a native one, or "web" for the OpenLinkHub web interface."""
+    kind = NATIVE_TEMPLATES.get(device.get("Template") or "")
+    if kind:
+        return kind
+    return "keyboard" if is_keyboard(device) else "web"
+
+
 class Backend(QObject):
     connectedChanged = Signal()
     systemChanged = Signal()
@@ -108,7 +117,7 @@ class Backend(QObject):
         self._error = ""
         self._system = {}
         self._devices = []
-        self._templates = {}
+        self._pages = {}
         self._active_serial = ""
         self._active = {}
         self._speed_profiles = []
@@ -201,19 +210,19 @@ class Backend(QObject):
                 devices.append({"serial": serial, "product": d.get("Product") or serial})
             devices.sort(key=lambda d: d["product"].lower())
             for d in devices:
-                if d["serial"] not in self._templates:
+                if d["serial"] not in self._pages:
                     self._load_template(d["serial"])
             self._devices = [dict(d, page=self._page(d["serial"])) for d in devices]
             self.devicesChanged.emit()
         self.api.get("/api/devices/", done)
 
     def _page(self, serial):
-        return NATIVE_TEMPLATES.get(self._templates.get(serial, ""), "web")
+        return self._pages.get(serial, "web")
 
     def _load_template(self, serial):
         def done(ok, data, error):
             if ok:
-                self._templates[serial] = (data.get("device") or {}).get("Template") or ""
+                self._pages[serial] = page_kind(data.get("device") or {})
                 self._devices = [dict(d, page=self._page(d["serial"])) for d in self._devices]
                 self.devicesChanged.emit()
         self.api.get("/api/devices/" + serial, done)
@@ -247,12 +256,13 @@ class Backend(QObject):
                 self.notify.emit(error, False)
                 return
             device = data.get("device") or {}
-            self._templates[serial] = device.get("Template") or ""
-            page = self._page(serial)
+            page = self._pages[serial] = page_kind(device)
             if page == "linkhub":
                 view = link_hub_view(device)
             elif page == "psu":
                 view = psu_view(device)
+            elif page == "keyboard":
+                view = keyboard_view(device)
             else:
                 view = {"serial": serial, "product": device.get("product") or serial}
             self._active = dict(view, page=page)
@@ -335,6 +345,66 @@ class Backend(QObject):
         self._change("/api/brightness/gradual", {"deviceId": self._active_serial,
                                                  "brightness": max(0, min(100, int(value)))})
 
+    # --- keyboards ---
+
+    def _keyboard(self, path, values, method="post"):
+        self._change(path, dict({"deviceId": self._active_serial}, **values), method)
+
+    @Slot(str)
+    def setKeyboardRgbMode(self, mode):
+        self._keyboard("/api/color", {"channelId": 0, "profile": mode})
+
+    @Slot("QVariantList", str)
+    def setKeyColors(self, key_ids, color):
+        """Colour for the given keys; applies right away, saved with saveKeyboardColorProfile."""
+        ids = [int(i) for i in key_ids]
+        text = color.lstrip("#")
+        if not ids or len(text) != 6:
+            return
+        rgb = {"red": int(text[0:2], 16), "green": int(text[2:4], 16), "blue": int(text[4:6], 16)}
+        # keyOption 3 = the selected keys, like "Selected keys" in the web interface
+        self._keyboard("/api/keyboard/color", {"keyId": ids[0], "keyOption": 3, "keys": ids, "color": rgb})
+
+    @Slot(str)
+    def setKeyboardColorProfile(self, name):
+        self._keyboard("/api/keyboard/profile/change", {"keyboardProfileName": name})
+
+    @Slot()
+    def saveKeyboardColorProfile(self):
+        self._keyboard("/api/keyboard/profile/save", {"keyboardProfileName": "0", "new": False})
+
+    @Slot(str)
+    def saveKeyboardColorProfileAs(self, name):
+        name = name.strip()
+        if not name:
+            self.notify.emit(self.tr("Give the profile a name"), False)
+            return
+        self._keyboard("/api/keyboard/profile/new", {"keyboardProfileName": name, "new": True}, "put")
+
+    @Slot(str)
+    def deleteKeyboardColorProfile(self, name):
+        self._keyboard("/api/keyboard/profile/delete", {"keyboardProfileName": name}, "delete")
+
+    @Slot(str)
+    def setUserProfile(self, name):
+        self._keyboard("/api/userProfile/change", {"userProfileName": name})
+
+    @Slot(str)
+    def setKeyboardLayout(self, layout):
+        self._keyboard("/api/keyboard/layout", {"keyboardLayout": layout})
+
+    @Slot(int)
+    def setKeyboardPollingRate(self, rate):
+        self._keyboard("/api/keyboard/pollingRate", {"pollingRate": int(rate)})
+
+    @Slot(int)
+    def setKeyboardDial(self, option):
+        self._keyboard("/api/keyboard/dial", {"keyboardControlDial": int(option)})
+
+    @Slot(int)
+    def setKeyboardDebounceTime(self, value):
+        self._keyboard("/api/keyboard/debounceTime", {"debounceTime": int(value)})
+
     @Slot(int)
     def setPsuFanMode(self, mode):
         self._change("/api/psu/speed", {"deviceId": self._active_serial, "fanMode": int(mode)})
@@ -343,7 +413,7 @@ class Backend(QObject):
     def setServerUrl(self, url):
         """Connects to another OpenLinkHub address (from the settings page)."""
         self.api.base_url = self.base_url = url.rstrip("/")
-        self._templates.clear()
+        self._pages.clear()
         self._devices, self._active_serial, self._active = [], "", {}
         self._set_connected(False, "")
         self.devicesChanged.emit()

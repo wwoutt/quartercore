@@ -144,6 +144,7 @@ ApplicationWindow {
                       : backend.activeSerial === "" ? "Overview.qml"
                       : backend.active.page === "linkhub" ? "LinkHub.qml"
                       : backend.active.page === "psu" ? "PsuPage.qml"
+                      : backend.active.page === "keyboard" ? "KeyboardPage.qml"
                       : backend.active.page === "web" ? "WebOnly.qml"
                       : "Loading.qml"
             }

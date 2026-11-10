@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.5 has:
+- Version 0.6 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -45,6 +45,10 @@ not audited by an independent developer.
     colours; use an effect on every device of a LINK System Hub in one click.
   - **Power supply** (HX1500i and other Corsair HID power supplies): power, output
     power, temperatures, fan speed and the 12V/5V/3.3V rails live, and the fan mode.
+  - **Keyboard** (tested on the K100): the keyboard drawn with its key colours;
+    select keys, rows or light zones and give them a colour; colour profiles (switch,
+    save, save as, delete); effect, layout, polling rate, control dial and debounce
+    time. Key assignments and macros are still in the web interface.
   - **Tray icon**: CPU and GPU temperature in the tooltip and menu, a speed profile
     for all fans and pump of a hub in two clicks, quick links to the XENEON EDGE
     layout and the web interface. Closing the window keeps Quartercore in the tray.
