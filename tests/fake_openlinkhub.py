@@ -96,7 +96,32 @@ PSU = {
 
 def key(name, width=65, left=15, top=15, height=70, css="", color=(0, 255, 0), **flags):
     return dict({"keyName": name, "width": width, "height": height, "left": left, "top": top, "css": css,
-                 "color": rgb(*color), "onlyColor": False, "noColor": False}, **flags)
+                 "color": rgb(*color), "onlyColor": False, "noColor": False,
+                 # Key assignment: "default" means the key does its normal job
+                 "default": True, "actionType": 0, "actionCommand": 0, "actionHold": False,
+                 "toggleDelay": 0, "modifierKey": 0, "retainOriginal": False, "deviceId": "",
+                 "modifier": False}, **flags)
+
+
+# /api/input/...: index -> name and Linux key code; the fake uses its own indexes
+INPUT_KEYS = {"0": {"Name": "None", "CommandCode": 0}, "101": {"Name": "A", "CommandCode": 30},
+              "102": {"Name": "B", "CommandCode": 48}, "103": {"Name": "H", "CommandCode": 35},
+              "104": {"Name": "Left Ctrl", "CommandCode": 29}}
+MEDIA_KEYS = {"1": {"Name": "Volume Up", "CommandCode": 115}, "2": {"Name": "Volume Down", "CommandCode": 114}}
+MOUSE_BUTTONS = {"201": {"Name": "Left Button", "CommandCode": 272}, "202": {"Name": "Right Button", "CommandCode": 273}}
+ASSIGNMENT_TYPES = {"0": "None", "1": "Media Keys", "2": "DPI +", "3": "Keyboard", "4": "DPI -", "8": "Sniper",
+                    "9": "Mouse", "10": "Macro", "13": "Scroll Up", "21": "Change Profile"}
+DIAL_OPTIONS = {1: "Volume Control", 2: "Brightness"}
+
+
+def initial_macros():
+    return {"1": {"id": 1, "name": "Hello", "repeat": 0, "repeatDelay": 0, "actions": {
+        "0": {"actionType": 3, "actionCommand": 103, "actionDelay": 0, "actionHold": False, "actionRepeat": 0,
+              "actionRepeatDelay": 0, "actionText": "", "mousePositionX": 0, "mousePositionY": 0,
+              "mousePositionAbsolute": False},
+        "1": {"actionType": 5, "actionCommand": 0, "actionDelay": 50, "actionHold": False, "actionRepeat": 0,
+              "actionRepeatDelay": 0, "actionText": "", "mousePositionX": 0, "mousePositionY": 0,
+              "mousePositionAbsolute": False}}}}
 
 
 def initial_keyboard():
@@ -108,7 +133,9 @@ def initial_keyboard():
                        "4": key("ESC"), "5": key("F1", left=95), "6": key("WH +", noColor=True),
                        "7": key("", css="keyboard-key right-led-1", **led)}},
         "2": {"keys": {"8": key("", css="keyboard-key left-led-2", **led),
-                       "9": key("Tab", width=108), "10": key("Q", color=(255, 0, 0)), "11": key("+", height=155),
+                       "9": key("Tab", width=108),
+                       "10": key("Q", color=(255, 0, 0), default=False, actionType=3, actionCommand=101),
+                       "11": key("+", height=155),
                        "12": key("", css="keyboard-key right-led-2", **led)}},
     }
     return {
@@ -116,6 +143,9 @@ def initial_keyboard():
         "userProfiles": {"default": {"Active": True}, "work": {"Active": False}},
         "DeviceProfile": {"Profile": "default", "Profiles": ["default", "Gaming"], "RGBProfile": "static",
                           "Layout": "US", "PollingRate": 4, "ControlDial": 1, "DebounceTime": 1,
+                          "DisableWinKey": False, "DisableShiftTab": False, "DisableAltTab": True,
+                          "DisableAltF4": False,
+                          "ControlDialColors": {"1": rgb(255, 255, 255), "2": rgb(0, 255, 255)},
                           "Keyboards": {"default": {"row": keys}, "Gaming": {"row": copy.deepcopy(keys)}}},
         "RGBModes": ["keyboard", "rainbow", "static"], "Layouts": ["US", "DE"],
         "PollingRates": {"0": "Not Set", "4": "1000 Hz / 1 msec", "7": "8000 Hz / 0.125 msec"},
@@ -130,6 +160,7 @@ class State:
         self.effects = {"HUB1": initial_effects(), "KB1": initial_effects()}
         self.psu = copy.deepcopy(PSU)
         self.keyboard = initial_keyboard()
+        self.macros = initial_macros()
         self.requests = []
         self.lock = threading.Lock()
 
@@ -179,6 +210,8 @@ class Handler(BaseHTTPRequestHandler):
             self.reply({"code": 200, "status": 0, "device": HUB})
         elif self.path == "/api/devices/PSU1":
             self.reply({"code": 200, "status": 0, "device": s.psu})
+        elif self.keyboard_read():
+            pass
         elif self.path == "/api/devices/KB1":
             self.reply({"code": 200, "status": 0, "device": s.keyboard})
         elif self.path.startswith("/api/color/"):
@@ -197,11 +230,160 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.reply({"code": 200, "status": 1, "data": "40.0 °C"})
 
+    def data(self, data):
+        # Keyboard and macro reads answer status 1, like OpenLinkHub
+        self.reply({"code": 200, "status": 1, "data": data})
+
+    def keyboard_keys(self):
+        profile = self.state.keyboard["DeviceProfile"]
+        for row in profile["Keyboards"][profile["Profile"]]["row"].values():
+            for key_id, k in row["keys"].items():
+                yield int(key_id), k
+
+    def keyboard_read(self):
+        """GETs for key assignments, macros, performance and dial colours; False for other paths."""
+        s = self.state
+        profile = s.keyboard["DeviceProfile"]
+        path = self.path
+        if path == "/api/keyboard/assignmentsTypes/KB1":
+            self.data(ASSIGNMENT_TYPES)
+        elif path == "/api/keyboard/assignmentsModifiers/KB1":
+            modifiers = {"0": "None"}
+            modifiers.update({str(i): k.get("keyNameInternal") or k["keyName"]
+                              for i, k in self.keyboard_keys() if k.get("modifier")})
+            self.data(modifiers)
+        elif path == "/api/keyboard/getPerformance/KB1":
+            self.data([{"name": name, "type": "checkbox", "value": profile[field], "internal": internal}
+                       for name, field, internal in (
+                           ("Disable Win Key", "DisableWinKey", "perf_winKey"),
+                           ("Disable Shift + Tab", "DisableShiftTab", "perf_shiftTab"),
+                           ("Disable Alt + Tab", "DisableAltTab", "perf_altTab"),
+                           ("Disable Alt + F4", "DisableAltF4", "perf_altF4"))])
+        elif path == "/api/keyboard/dial/getColors/KB1":
+            self.data([{"Id": int(k), "Name": DIAL_OPTIONS[int(k)], "Color": v}
+                       for k, v in sorted(profile["ControlDialColors"].items())])
+        elif path == "/api/input/keyboard":
+            self.data(INPUT_KEYS)
+        elif path == "/api/input/media":
+            self.data(MEDIA_KEYS)
+        elif path == "/api/input/mouse":
+            self.data(MOUSE_BUTTONS)
+        elif path == "/api/devices/mouse":
+            self.data({"MOUSE1": "M75 WIRELESS"})
+        elif path == "/api/device/profiles/KB1":
+            self.data(list(s.keyboard["userProfiles"]))
+        elif path == "/api/macro/":
+            self.data(s.macros)
+        elif path.startswith("/api/macro/"):
+            self.data(s.macros.get(path.rsplit("/", 1)[1]))
+        else:
+            return False
+        return True
+
+    def macro_change(self, method, body):
+        """Macro requests, with the checks of upstream requests.go and macro.go."""
+        s = self.state
+        m = s.macros.get(str(body.get("macroId", -1)))
+        if self.path == "/api/macro/new" and method == "PUT":
+            name = body.get("macroName", "")
+            if len(name) < 3 or not name.isalnum():
+                self.refuse("Invalid macro name")
+                return
+            if any(v["name"].lower() == name.lower() for v in s.macros.values()):
+                self.refuse("Unable to create macro profile")
+                return
+            new_id = max((int(k) for k in s.macros), default=0) + 1
+            s.macros[str(new_id)] = {"id": new_id, "name": name, "repeat": 0, "repeatDelay": 0, "actions": {}}
+            self.ok("Macro profile is created")
+            return
+        if m is None:
+            self.refuse("Invalid macro selected")
+            return
+        if self.path == "/api/macro/profile" and method == "DELETE":
+            del s.macros[str(m["id"])]
+            self.ok("Macro profile is deleted")
+        elif self.path == "/api/macro/value" and method == "DELETE":
+            if m["actions"].pop(str(body.get("macroIndex")), None) is None:
+                self.refuse("Unable to delete macro profile value")
+                return
+            self.ok("Macro value is deleted")
+        elif self.path == "/api/macro/updateSettings":
+            if body.get("macroRepeat", 0) < -1 or body.get("macroRepeatDelay", 0) < 0:
+                self.refuse("Invalid macro loop value")
+                return
+            m["repeat"], m["repeatDelay"] = body["macroRepeat"], body["macroRepeatDelay"]
+            self.ok("Macro settings are successfully updated")
+        elif self.path == "/api/macro/updateValue":
+            action = m["actions"].get(str(body.get("macroIndex")))
+            if action is None:
+                self.refuse("Unable to update macro profile value")
+                return
+            if not 0 <= body.get("actionRepeatValue", 0) <= 100:
+                self.refuse("Invalid macro repeat value")
+                return
+            action.update(actionHold=body["pressAndHold"], actionRepeat=body["actionRepeatValue"],
+                          actionRepeatDelay=body["actionRepeatDelay"], mousePositionX=body["mousePositionX"],
+                          mousePositionY=body["mousePositionY"], mousePositionAbsolute=body["mousePositionAbsolute"])
+            self.ok("Macro value is updated")
+        elif self.path == "/api/macro/newValue":
+            kind = body.get("macroType", 0)
+            if not 3 <= kind <= 20 or (kind == 3 and body.get("macroValue", 0) == 0) or (
+                    kind == 5 and body.get("macroDelay", 0) < 1) or (kind == 6 and not body.get("macroText")):
+                self.refuse("Invalid macro value")
+                return
+            # Like upstream: the new index is the number of steps, so after a gap it replaces the last one
+            m["actions"][str(len(m["actions"]))] = {
+                "actionType": kind, "actionCommand": body["macroValue"], "actionDelay": body["macroDelay"],
+                "actionHold": False, "actionRepeat": 0, "actionRepeatDelay": 0, "actionText": body["macroText"],
+                "mousePositionX": body["mousePositionX"], "mousePositionY": body["mousePositionY"],
+                "mousePositionAbsolute": body["mousePositionAbsolute"]}
+            self.ok("Macro value is saved")
+        else:
+            self.refuse("unknown")
+
+    def key_assignment(self, body):
+        """updateKeyAssignment with the checks of ProcessChangeKeyAssignment and the K100."""
+        kind, hold = body.get("keyAssignmentType", 0), body.get("pressAndHold", False)
+        if kind == 10 and hold:
+            self.refuse("Press and Hold is not allowed for macros")
+            return
+        if kind == 8 and not hold:
+            self.refuse("Sniper requires Press and Hold")
+            return
+        for key_id, k in self.keyboard_keys():
+            if key_id == body.get("keyIndex"):
+                if k["onlyColor"]:
+                    self.refuse("Unable to apply key assignment")
+                    return
+                # The K100 keeps these fields; it ignores the modifier and "retain original"
+                k.update({"default": body.get("enabled", False), "actionType": kind,
+                          "actionCommand": body.get("keyAssignmentValue", 0),
+                          "deviceId": body.get("keyAssignmentValueString", ""), "actionHold": hold,
+                          "toggleDelay": max(30, body.get("toggleDelay", 0))})
+                self.ok("Key assignment is updated")
+                return
+        self.refuse("Unable to apply key assignment")
+
     def keyboard_change(self, body):
         """Applies a keyboard request to the fake state, with the checks OpenLinkHub does."""
         kb = self.state.keyboard
         profile = kb["DeviceProfile"]
         name = body.get("keyboardProfileName", "")
+        if self.path == "/api/keyboard/updateKeyAssignment":
+            self.key_assignment(body)
+            return
+        if self.path == "/api/keyboard/setPerformance":
+            for field, internal in (("DisableWinKey", "perf_winKey"), ("DisableShiftTab", "perf_shiftTab"),
+                                    ("DisableAltTab", "perf_altTab"), ("DisableAltF4", "perf_altF4")):
+                profile[field] = bool(body.get(internal, False))
+            self.ok("Keyboard performance is updated")
+            return
+        if self.path == "/api/keyboard/dial/setColors":
+            for zone, color in (body.get("colorZones") or {}).items():
+                if zone in profile["ControlDialColors"]:
+                    profile["ControlDialColors"][zone] = rgb(color["red"], color["green"], color["blue"])
+            self.ok("Control dial is updated")
+            return
         if self.path == "/api/keyboard/color":
             if body.get("keyOption") != 3 or not body.get("keys"):
                 self.refuse("Invalid key selected")
@@ -249,6 +431,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("PUT", self.path, body))
+            if self.path.startswith("/api/macro/"):
+                self.macro_change("PUT", body)
+                return
             if self.path.startswith("/api/keyboard/"):
                 self.keyboard_change(body)
                 return
@@ -285,6 +470,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("POST", self.path, body))
+            if self.path.startswith("/api/macro/"):
+                self.macro_change("POST", body)
+                return
             if self.path.startswith("/api/keyboard/") or self.path == "/api/userProfile/change" or (
                     self.path == "/api/color" and body.get("deviceId") == "KB1"):
                 self.keyboard_change(body)
@@ -314,6 +502,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("DELETE", self.path, body))
+            if self.path.startswith("/api/macro/"):
+                self.macro_change("DELETE", body)
+                return
             if self.path.startswith("/api/keyboard/"):
                 self.keyboard_change(body)
                 return

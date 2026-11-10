@@ -269,6 +269,11 @@ class Backend(QObject):
             self.activeChanged.emit()
         self.api.get("/api/devices/" + serial, done)
 
+    @Slot()
+    def reloadActive(self):
+        if self._active_serial:
+            self._load_active(self._active_serial)
+
     def _change(self, path, body, method="post"):
         """Sends a change, reports the result and reloads the active device."""
         serial = self._active_serial

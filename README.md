@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.6 has:
+- Version 0.7 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -48,7 +48,15 @@ not audited by an independent developer.
   - **Keyboard** (tested on the K100): the keyboard drawn with its key colours;
     select keys, rows or light zones and give them a colour; colour profiles (switch,
     save, save as, delete); effect, layout, polling rate, control dial and debounce
-    time. Key assignments and macros are still in the web interface.
+    time; **key assignments** per key (media keys, keyboard keys, mouse buttons,
+    macros, DPI, sniper, scroll, zoom, profile change and more, with default action,
+    press and hold and toggle delay); **performance** (disable the Win key,
+    Alt + Tab, Shift + Tab, Alt + F4); the **control dial colours**.
+  - **Macros**: create and delete macros, add steps (keyboard key, mouse button,
+    delay, text, mouse position), change hold, repeat and delay per step, delete
+    steps, loop or repeat a macro, and **record** key presses in the window (with
+    the pauses between them). Keys the desktop takes itself, like Alt + Tab, can't
+    be recorded.
   - **Tray icon**: CPU and GPU temperature in the tooltip and menu, a speed profile
     for all fans and pump of a hub in two clicks, quick links to the XENEON EDGE
     layout and the web interface. Closing the window keeps Quartercore in the tray.
@@ -60,8 +68,8 @@ not audited by an independent developer.
 ## What it is not
 - **Not a replacement for OpenLinkHub.** OpenLinkHub must be installed and running;
   this program only controls it.
-- **Not complete.** Most device types (keyboards, mice, headsets, USB-dongle power supplies,
-  LCDs, per-LED colours, macros) still use the web interface. Temperature profiles
+- **Not complete.** Most device types (other keyboards than the K100, mice, headsets,
+  USB-dongle power supplies, LCDs, per-LED colours) still use the web interface. Temperature profiles
   with probes, external sensors or multiple GPUs, and the step table used when
   `graphProfiles` is off, are only in the web interface for now.
   See [ROADMAP.md](ROADMAP.md).

@@ -10,7 +10,7 @@ has its own page, it opens in the OpenLinkHub web interface. Estimates are rough
 | 3 | Temperature (speed) profiles: list, create, edit curves | **done** (0.3); probes, external sensors and the step table (graphProfiles off) still to do |
 | 4 | RGB profiles and colour editing (static colours, effects, speed) | **done** (0.4); per-LED colours and the RGB cluster still to do |
 | 5 | HX1500i and other power supplies | **done** (0.5) for HID power supplies; dongle power supplies still to do |
-| 6 | K100 and other keyboards: lighting, profiles, key assignments, macros | **part 1 done** (0.6): key colours, colour profiles, settings; key assignments, macros, performance and dial colours still to do |
+| 6 | K100 and other keyboards: lighting, profiles, key assignments, macros | **done** for the K100: part 1 (0.6) key colours, colour profiles, settings; part 2 (0.7) key assignments, macros with recording, performance, dial colours. Other keyboards (FlashTap, actuation, keyboards with modifier keys) still to test |
 | 7 | HS80 MAX and other headsets: lighting, equalizer, sidetone, sleep | planned |
 | 8 | XENEON EDGE: native kiosk on the XENEON EDGE, widgets, layout editor, store | planned |
 | 9 | Other device types (mice, controllers, LCDs, Commander hubs, memory) | later |

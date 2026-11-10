@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from . import __version__, i18n
 from .backend import Backend
+from .keyboard import Keyboard
 from .lighting import Lighting
 from .profiles import Profiles
 from .settings import Settings
@@ -80,6 +81,8 @@ def main():
     context.setContextProperty("profiles", profiles)
     lighting = Lighting(backend)
     context.setContextProperty("lighting", lighting)
+    keyboard = Keyboard(backend)
+    context.setContextProperty("keyboard", keyboard)
     context.setContextProperty("appVersion", __version__)
     context.setContextProperty("languages", [{"code": "system", "name": ""}]
                                + [{"code": k, "name": v} for k, v in i18n.LANGUAGES.items()])
@@ -133,7 +136,12 @@ def main():
             elif profile and section == "lighting":
                 QTimer.singleShot(3000, lambda: lighting.selectEffect(profile))
         elif args.page:
-            QTimer.singleShot(1500, lambda: backend.selectDevice(args.page))
+            # <serial>:<tab>[:<key id>] opens a keyboard tab, e.g. KB1:keys:10
+            serial, _, rest = args.page.partition(":")
+            tab, _, key_id = rest.partition(":")
+            QTimer.singleShot(1500, lambda: backend.selectDevice(serial))
+            if tab:
+                QTimer.singleShot(3000, lambda: keyboard.tabRequested.emit(tab, int(key_id or -1)))
 
         def grab():
             window.grabWindow().save(args.screenshot)

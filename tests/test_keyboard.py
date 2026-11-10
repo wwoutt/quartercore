@@ -17,7 +17,7 @@ from PySide6.QtCore import QCoreApplication  # noqa: E402
 
 import fake_openlinkhub  # noqa: E402
 from quartercore.backend import Backend, page_kind  # noqa: E402
-from quartercore.keyboard import keyboard_view  # noqa: E402
+from quartercore.keyboard import Keyboard, assignment_body, keyboard_view  # noqa: E402
 from test_backend import wait  # noqa: E402
 
 
@@ -46,7 +46,7 @@ class KeyboardViewTest(unittest.TestCase):
         self.assertEqual(self.keys[4]["y"], 20 + 15)
         self.assertEqual(self.keys[9]["y"], 35 + 70 + 15)
         self.assertEqual(self.keys[11]["h"], 155)           # tall key keeps its height
-        self.assertEqual(self.view["keysHeight"], 120 + 70)
+        self.assertEqual(self.view["keysHeight"], 120 + 155)  # the tall key in the last row fits
 
     def test_side_strips(self):
         left, right = self.keys[3], self.keys[7]
@@ -67,6 +67,26 @@ class KeyboardViewTest(unittest.TestCase):
         self.assertEqual((v["userProfile"], v["userProfiles"]), ("default", ["default", "work"]))
         self.assertEqual([o["value"] for o in v["pollingRates"]], [0, 4, 7])
         self.assertEqual((v["pollingRate"], v["dial"], v["debounceTime"], v["layout"]), (4, 1, 1, "US"))
+
+    def test_assignments(self):
+        q = self.keys[10]["assignment"]
+        self.assertEqual((q["enabled"], q["type"], q["value"]), (False, 3, 101))
+        self.assertTrue(self.keys[4]["assignment"]["enabled"])
+
+
+class AssignmentBodyTest(unittest.TestCase):
+    def test_number_value(self):
+        self.assertEqual(assignment_body("KB1", 10, {"enabled": False, "type": 3, "value": 102, "toggleDelay": 0}), {
+            "deviceId": "KB1", "keyIndex": 10, "enabled": False, "pressAndHold": False,
+            "keyAssignmentOriginal": False, "keyAssignmentModifier": 0, "keyAssignmentType": 3,
+            "keyAssignmentValue": 102, "toggleDelay": 0})
+
+    def test_text_value(self):
+        # DPI, sniper and profile change send the value as a text, like overview.js
+        for kind in (2, 4, 8, 21):
+            body = assignment_body("KB1", 4, {"type": kind, "value": "MOUSE1"})
+            self.assertEqual(body["keyAssignmentValueString"], "MOUSE1")
+            self.assertNotIn("keyAssignmentValue", body)
 
 
 class KeyboardPageTest(unittest.TestCase):
@@ -141,6 +161,83 @@ class KeyboardPageTest(unittest.TestCase):
         self.assertEqual(sent["/api/userProfile/change"], {"deviceId": "KB1", "userProfileName": "work"})
         self.assertTrue(wait(lambda: (self.backend.active.get("rgbMode"), self.backend.active.get("layout"),
                                       self.backend.active.get("userProfile")) == ("keyboard", "DE", "work")))
+
+
+class KeyAssignmentTest(unittest.TestCase):
+    """Key assignments, performance and dial colours against the fake."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QCoreApplication.instance() or QCoreApplication([])
+
+    def setUp(self):
+        self.server, url, self.state = fake_openlinkhub.start()
+        self.backend = Backend(url)
+        self.keyboard = Keyboard(self.backend)
+        self.messages = []
+        self.backend.notify.connect(lambda text, ok: self.messages.append((text, ok)))
+        self.backend.selectDevice("KB1")
+        self.assertTrue(wait(lambda: len(self.keyboard.dialColors) == 2 and len(self.keyboard.performance) == 4
+                             and len(self.keyboard.assignmentValues["3"]) == 4 and self.keyboard.macros))
+
+    def tearDown(self):
+        self.server.shutdown()
+
+    def key(self, key_id):
+        return next(k for k in self.backend.active["keys"] if k["keyId"] == key_id)
+
+    def sent(self, path):
+        return [body for _, p, body in self.state.requests if p == path]
+
+    def test_lists(self):
+        kb = self.keyboard
+        types = {o["value"]: o["name"] for o in kb.assignmentTypes}
+        self.assertEqual((types[0], types[10]), ("None", "Macro"))
+        self.assertEqual(kb.modifiers, [{"value": 0, "name": "None"}])   # the K100 has no modifier keys
+        values = kb.assignmentValues
+        self.assertEqual([o["name"] for o in values["3"]], ["A", "B", "H", "Left Ctrl"])  # "None" left out
+        self.assertEqual(values["2"], [{"value": "MOUSE1", "name": "M75 WIRELESS"}])
+        self.assertEqual([o["value"] for o in values["21"]], ["default", "work"])
+        self.assertEqual(values["10"], [{"value": 1, "name": "Hello"}])
+
+    def test_assign_key(self):
+        self.keyboard.setKeyAssignment(4, {"enabled": False, "type": 1, "value": 2, "toggleDelay": 0})
+        self.assertTrue(wait(lambda: self.key(4)["assignment"]["type"] == 1))
+        a = self.key(4)["assignment"]
+        self.assertEqual((a["enabled"], a["value"], a["toggleDelay"]), (False, 2, 30))  # at least 30 ms
+        self.assertEqual(self.sent("/api/keyboard/updateKeyAssignment")[0]["keyAssignmentValue"], 2)
+        self.assertTrue(self.messages[-1][1])
+
+    def test_assign_mouse_device(self):
+        self.keyboard.setKeyAssignment(9, {"type": 8, "value": "MOUSE1", "pressAndHold": True})
+        self.assertTrue(wait(lambda: self.key(9)["assignment"]["valueString"] == "MOUSE1"))
+
+    def test_refusals_are_reported(self):
+        self.keyboard.setKeyAssignment(4, {"type": 10, "value": 1, "pressAndHold": True})
+        self.assertTrue(wait(lambda: self.messages))
+        self.assertFalse(self.messages[-1][1])
+        self.keyboard.setKeyAssignment(1, {"type": 3, "value": 101})   # a light zone has no assignment
+        self.assertTrue(wait(lambda: len(self.messages) == 2))
+        self.assertFalse(self.messages[-1][1])
+        self.assertTrue(self.key(4)["assignment"]["enabled"])
+
+    def test_performance(self):
+        self.assertEqual({p["internal"]: p["value"] for p in self.keyboard.performance}["perf_altTab"], True)
+        self.keyboard.setPerformance({"perf_winKey": True})
+        self.assertTrue(wait(lambda: {p["internal"]: p["value"] for p in self.keyboard.performance}["perf_winKey"]))
+        self.assertEqual(self.sent("/api/keyboard/setPerformance")[0], {
+            "deviceId": "KB1", "perf_winKey": True, "perf_shiftTab": False, "perf_altTab": True, "perf_altF4": False})
+
+    def test_dial_colours(self):
+        self.assertEqual([c["color"] for c in self.keyboard.dialColors], ["#ffffff", "#00ffff"])
+        self.keyboard.setDialColors({"2": "#ff0000"})
+        self.assertTrue(wait(lambda: self.keyboard.dialColors[1]["color"] == "#ff0000"))
+        self.assertEqual(self.sent("/api/keyboard/dial/setColors")[0], {"deviceId": "KB1", "colorZones": {
+            "1": {"red": 255, "green": 255, "blue": 255}, "2": {"red": 255, "green": 0, "blue": 0}}})
+
+    def test_other_device_clears_lists(self):
+        self.backend.selectDevice("HUB1")
+        self.assertTrue(wait(lambda: self.keyboard.dialColors == []))
 
 
 if __name__ == "__main__":
