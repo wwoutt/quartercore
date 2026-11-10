@@ -106,6 +106,38 @@ Flickable {
         }
 
         Label {
+            text: qsTr("XENEON EDGE")
+            font.pixelSize: 18
+            Layout.leftMargin: 24
+            Layout.topMargin: 8
+        }
+
+        Frame {
+            Layout.fillWidth: true
+            Layout.leftMargin: 24
+            Layout.rightMargin: 24
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 6
+
+                Switch {
+                    text: qsTr("Show the native kiosk fullscreen on the XENEON EDGE")
+                    checked: settings.edgeKiosk
+                    onToggled: settings.edgeKiosk = checked
+                }
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.7
+                    text: (edge.screenName ? qsTr("Screen: %1.").arg(edge.screenName)
+                                           : qsTr("No 2560 × 720 screen found."))
+                          + " " + qsTr("It uses the layout of the XENEON EDGE layout editor. Turn off the web kiosk of the fork first (systemctl --user disable --now openlinkhub-xeneon-kiosk), so the two don't overlap.")
+                }
+            }
+        }
+
+        Label {
             text: qsTr("About")
             font.pixelSize: 18
             Layout.leftMargin: 24

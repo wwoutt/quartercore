@@ -12,20 +12,17 @@ has its own page, it opens in the OpenLinkHub web interface. Estimates are rough
 | 5 | HX1500i and other power supplies | **done** (0.5) for HID power supplies; dongle power supplies still to do |
 | 6 | K100 and other keyboards: lighting, profiles, key assignments, macros | **done** for the K100: part 1 (0.6) key colours, colour profiles, settings; part 2 (0.7) key assignments, macros with recording, performance, dial colours. Other keyboards (FlashTap, actuation, keyboards with modifier keys) still to test |
 | 7 | HS80 MAX and other headsets: lighting, equalizer, sidetone, sleep | **done** (0.8) for the HS80 MAX WIRELESS: profiles, effect, brightness, zone colours, equalizer, sidetone, mic LED, sleep, buttons. Other headsets (Virtuoso with noise cancelling, HS80 RGB, VOID) still to do |
-| 8 | XENEON EDGE: native kiosk on the XENEON EDGE, widgets, layout editor, store | planned |
+| 8 | XENEON EDGE: native kiosk on the XENEON EDGE, widgets, layout editor, store | **part 1 done** (0.9): native fullscreen kiosk with all 16 upstream widgets, the fork's layout and widget settings. Still to do: native layout editor (drag, resize, hide, widget settings), a native widget format for the store (decided: no HTML widgets), touch testing on the real screen |
 | 9 | Other device types (mice, controllers, LCDs, Commander hubs, memory) | later |
 | 10 | Packaging (Flatpak), translations | later |
 
 ## Notes for step 8 (XENEON EDGE)
-The current kiosk, custom widgets and widget store of
-[wwoutt/OpenLinkHub](https://github.com/wwoutt/OpenLinkHub) are HTML. A native
-XENEON EDGE needs:
-- a fullscreen Qt window on the 2560×720 output (the KWin rule and touch mapping
-  from the fork can stay),
-- native versions of the upstream widgets (clock, weather, system values, devices,
-  media player, ...),
-- a native layout editor (drag, resize, hide), stored in the same layout file so the
-  web editor keeps working,
-- a decision for custom widgets from the store: either a native widget format (QML)
-  or showing HTML widgets in a sandboxed web view inside the Qt window. Existing HTML
-  widgets only keep working with the second option.
+Decided on 2026-11-10: the native kiosk is QML only. Custom HTML widgets from the
+widget store of [wwoutt/OpenLinkHub](https://github.com/wwoutt/OpenLinkHub) are not
+shown natively (a placeholder marks their place); a native widget format follows
+later. Part 1 (0.9) has the kiosk and the 16 upstream widgets. Part 2:
+- a native layout editor (drag, resize, hide), saved in the same layout file
+  through `/api/xeneonLayout`, so the web editor keeps working,
+- editing the widget settings (colours, texts, device, city, ...),
+- a native widget format and store,
+- weather by device location (upstream asks the browser for it).

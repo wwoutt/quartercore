@@ -14,6 +14,7 @@ if [ "$3" = "--fake" ]; then
   fake=$!
   sleep 1
   url=(--url http://127.0.0.1:27099)
+  export QUARTERCORE_WEATHER_URL=http://127.0.0.1:27099/weather
 fi
 QT_QPA_PLATFORM=offscreen timeout 30 python3 -m quartercore "${url[@]}" \
   --screenshot "$1" ${2:+--page "$2"} 2>&1 | grep -v -e '^qt.qpa' -e 'does not support raise'

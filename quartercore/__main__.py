@@ -14,12 +14,13 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from . import __version__, i18n
 from .backend import Backend
+from .edge import Edge, find_edge_screen
 from .headset import Headset
 from .keyboard import Keyboard
 from .lighting import Lighting
@@ -86,6 +87,8 @@ def main():
     context.setContextProperty("keyboard", keyboard)
     headset = Headset(backend)
     context.setContextProperty("headset", headset)
+    edge = Edge(backend)
+    context.setContextProperty("edge", edge)
     context.setContextProperty("appVersion", __version__)
     context.setContextProperty("languages", [{"code": "system", "name": ""}]
                                + [{"code": k, "name": v} for k, v in i18n.LANGUAGES.items()])
@@ -115,7 +118,7 @@ def main():
     # Keep running in the tray when the window is closed (see onClosing in Main.qml)
     app.setQuitOnLastWindowClosed(not tray_available)
     if tray_available:
-        tray = Tray(backend, icon, show_window, app.quit, app)
+        tray = Tray(backend, icon, show_window, app.quit, app, settings)
         tray.show()
 
     # A second start shows this window instead of opening another one
@@ -124,6 +127,39 @@ def main():
         QLocalServer.removeServer(INSTANCE)
         server.listen(INSTANCE)
         server.newConnection.connect(lambda: (server.nextPendingConnection().close(), show_window()))
+
+    # The native XENEON EDGE kiosk, made when it is first turned on
+    edge_window = []
+
+    def edge_screen():
+        screen = find_edge_screen(app.screens())
+        edge.set_screen_name(screen.name() if screen else "")
+        return screen
+
+    def update_edge():
+        screen = edge_screen()
+        wanted = settings.edgeKiosk and screen is not None and not args.screenshot
+        if wanted and not edge_window:
+            component = QQmlComponent(engine, QUrl.fromLocalFile(str(HERE / "qml" / "EdgeWindow.qml")))
+            created = component.create(context)
+            if created is None:
+                print(component.errorString(), file=sys.stderr)
+                return
+            edge_window.append(created)
+        if not edge_window:
+            return
+        win = edge_window[0]
+        if wanted:
+            win.setScreen(screen)
+            win.setGeometry(screen.geometry())
+            win.showFullScreen()
+        else:
+            win.hide()
+
+    settings.changed.connect(update_edge)
+    app.screenAdded.connect(lambda _s: update_edge())
+    app.screenRemoved.connect(lambda _s: update_edge())
+    update_edge()
 
     backend.start()
     if not (args.minimized and tray_available):
@@ -138,6 +174,15 @@ def main():
                 QTimer.singleShot(3000, lambda: profiles.select(profile))
             elif profile and section == "lighting":
                 QTimer.singleShot(3000, lambda: lighting.selectEffect(profile))
+        elif args.page == "edge":
+            # Renders the kiosk at 2560 x 720, also without a XENEON EDGE screen
+            component = QQmlComponent(engine, QUrl.fromLocalFile(str(HERE / "qml" / "EdgeWindow.qml")))
+            edge_window.append(component.create(context))
+            if edge_window[0] is None:
+                print(component.errorString(), file=sys.stderr)
+                return 1
+            edge_window[0].show()
+            window = edge_window[0]
         elif args.page:
             # <serial>:<tab>[:<key id>] opens a keyboard tab, e.g. KB1:keys:10
             serial, _, rest = args.page.partition(":")

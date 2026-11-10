@@ -92,6 +92,15 @@ class Settings(QObject):
             self._write_autostart()
 
     @Property(bool, notify=changed)
+    def edgeKiosk(self):
+        """Shows the native kiosk fullscreen on the XENEON EDGE."""
+        return self._get("edgeKiosk", False, bool)
+
+    @edgeKiosk.setter
+    def edgeKiosk(self, value):
+        self._set("edgeKiosk", bool(value))
+
+    @Property(bool, notify=changed)
     def autostart(self):
         return autostart_file().exists()
 

@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.8 has:
+- Version 0.9 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -62,6 +62,16 @@ not audited by an independent developer.
     10-band equalizer (-12 to +12 dB, flat), sidetone on/off and level, mic LED,
     sleep timer, and the assignment of its buttons. Like the web interface, the
     settings only show while the headset is switched on.
+  - **XENEON EDGE kiosk** (native, off by default): a fullscreen window on the
+    2560 × 720 output with all 16 OpenLinkHub widgets made in QML: date and time,
+    weather (Open-Meteo, for the city set in OpenLinkHub), media player with
+    buttons, battery status, calendar, CPU/GPU temperature and load, device
+    temperature and RPM, temperature history, cooling overview, profile shortcuts,
+    memory and storage. It uses the layout and widget settings of the fork's
+    XENEON EDGE layout editor (`/api/xeneonLayout`); without them it shows the
+    upstream default widgets. Custom HTML widgets from the widget store are not
+    shown, and the weather doesn't use the device location. Turn it on in the
+    settings or the tray menu, after turning off the fork's web kiosk.
   - **Tray icon**: CPU and GPU temperature in the tooltip and menu, a speed profile
     for all fans and pump of a hub in two clicks, quick links to the XENEON EDGE
     layout and the web interface. Closing the window keeps Quartercore in the tray.

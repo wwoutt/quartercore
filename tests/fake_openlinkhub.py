@@ -7,6 +7,7 @@
 
 import copy
 import json
+import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -178,6 +179,54 @@ def initial_headset():
     }
 
 
+# XENEON EDGE: two sets of widgets, so all 16 can be checked (OpenLinkHub has 11 areas)
+EDGE_AREAS = {
+    1: [(1, 1), (2, 2), (3, 6), (4, 7), (5, 8), (6, 9), (7, 10), (8, 11), (9, 3), (10, 5), (11, 4)],
+    2: [(1, 12), (2, 13), (3, 6), (4, 7), (5, 8), (6, 9), (9, 14), (10, 15), (11, 16)],
+}
+EDGE_NAMES = {1: ("Date / Time", "xeneon-clock"), 2: ("Weather", "xeneon-weather"),
+              3: ("Media Player", "xeneon-media-player"), 4: ("Battery Status", "xeneon-battery-status"),
+              5: ("Calendar", "xeneon-calendar"), 6: ("CPU Temp", "xeneon-cpu-temp"),
+              7: ("CPU Load", "xeneon-cpu-load"), 8: ("GPU Temp", "xeneon-gpu-temp"),
+              9: ("GPU Load", "xeneon-gpu-load"), 10: ("Device Temperature", "xeneon-device-temp"),
+              11: ("Device RPM", "xeneon-device-rpm"), 12: ("Temperature History", "xeneon-temperature-history"),
+              13: ("Cooling Overview", "xeneon-cooling-overview"), 14: ("Profile Shortcuts", "xeneon-profile-shortcuts"),
+              15: ("Memory Usage", "xeneon-memory"), 16: ("Storage Overview", "xeneon-storage")}
+# Settings saved in the device profile, on top of the upstream defaults
+EDGE_SETTINGS = {
+    2: {"city": "Amsterdam", "country": "Netherlands", "latitude": 52.37, "longitude": 4.89},
+    10: {"deviceId": "HUB1", "channelId": 2, "headerText": "Pump"},
+    11: {"deviceId": "HUB1", "channelId": 1, "headerText": "Fan"},
+    12: {"source": "cpu"}, 13: {"deviceId": "HUB1"}, 14: {"deviceId": "KB1"},
+}
+# The saved layout of set 2: positions, a hidden widget and a custom HTML widget
+EDGE_LAYOUT_2 = {"columns": 24, "rows": 12, "items": [
+    {"widgetId": 12, "x": 0, "y": 0, "w": 8, "h": 7, "hidden": False},
+    {"widgetId": 13, "x": 0, "y": 7, "w": 8, "h": 5, "hidden": False},
+    {"widgetId": 9, "x": 0, "y": 0, "w": 1, "h": 1, "hidden": True},
+    {"widgetId": 0, "custom": "crypto-ticker", "x": 12, "y": 8, "w": 4, "h": 4, "hidden": False},
+]}
+STATS_DEVICES = {"HUB1": {"Devices": {
+    "1": {"Device": "iCUE LINK RX RGB", "TemperatureString": "", "Temperature": 0, "Speed": "700 RPM"},
+    "2": {"Device": "iCUE LINK TITAN 360", "TemperatureString": "26.5 °C", "Temperature": 26.5, "Speed": "2400 RPM"},
+    "3": {"Device": "Temperature probe", "TemperatureString": "30.0 °C", "Temperature": 30, "Speed": ""}}}}
+
+
+def edge_widget(widget_id):
+    name, template = EDGE_NAMES[widget_id]
+    return dict({"id": widget_id, "name": name, "template": template}, **EDGE_SETTINGS.get(widget_id, {}))
+
+
+def initial_edge(variant=1):
+    areas = EDGE_AREAS[variant]
+    return {
+        "variant": variant, "layout": EDGE_LAYOUT_2 if variant == 2 else None, "revision": "r1",
+        "device": {"serial": "EDGE1", "product": "XENEON EDGE", "Template": "xeneonedge.html",
+                   "DeviceProfile": {"WidgetAreas": {str(a): {"widgetId": w, "widget": edge_widget(w)}
+                                                     for a, w in areas}}},
+    }
+
+
 class State:
     def __init__(self):
         self.profiles = initial_profiles()
@@ -186,7 +235,10 @@ class State:
         self.keyboard = initial_keyboard()
         self.macros = initial_macros()
         self.headset = initial_headset()
+        self.edge = initial_edge(int(os.environ.get("FAKE_EDGE") or 1))
         self.requests = []
+        # Reads, kept apart so tests that count the changes keep working
+        self.gets = []
         self.lock = threading.Lock()
 
 
@@ -217,6 +269,7 @@ class Handler(BaseHTTPRequestHandler):
     # Reads answer status 0 with their data, like the real OpenLinkHub
     def do_GET(self):
         s = self.state
+        s.gets.append(self.path)
         if self.path == "/api/temperatures/":
             self.reply({"code": 200, "status": 0, "data": s.profiles})
         elif self.path.startswith("/api/temperatures/graph/"):
@@ -235,6 +288,8 @@ class Handler(BaseHTTPRequestHandler):
             self.reply({"code": 200, "status": 0, "device": HUB})
         elif self.path == "/api/devices/PSU1":
             self.reply({"code": 200, "status": 0, "device": s.psu})
+        elif self.edge_read():
+            pass
         elif self.keyboard_read():
             pass
         elif self.path == "/api/devices/HS1":
@@ -248,7 +303,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.reply({"code": 200, "status": 1, "data": {"device": serial, "profiles": s.effects[serial]}})
         elif self.path == "/api/stats/memory":
-            self.reply({"code": 200, "status": 1, "data": {"Total": 34359738368, "Used": 8589934592, "UsedPercent": 25}})
+            self.reply({"code": 200, "status": 1, "data": {"Total": 34359738368, "Used": 8589934592, "Available": 25769803776, "UsedPercent": 25, "SwapTotal": 8589934592, "SwapUsed": 1073741824, "SwapPercent": 12.5}})
         elif self.path == "/api/storageTemp":
             self.reply({"code": 200, "status": 1, "data": [
                 {"Key": "hwmon1", "Model": "Test SSD", "Temperature": 30, "TemperatureString": "30.0 °C"}]})
@@ -260,6 +315,54 @@ class Handler(BaseHTTPRequestHandler):
     def data(self, data):
         # Keyboard and macro reads answer status 1, like OpenLinkHub
         self.reply({"code": 200, "status": 1, "data": data})
+
+    def edge_read(self):
+        """XENEON EDGE layout, its widget data and a fake weather service; False for other paths."""
+        s = self.state
+        path = self.path
+        edge = s.edge
+        if path == "/api/xeneonLayout":
+            if edge is None:
+                self.send_response(404)
+                body = json.dumps({"status": 0, "message": "XENEON EDGE is not available"}).encode()
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return True
+            areas = [{"areaId": a, "widgetId": w, "name": EDGE_NAMES[w][0], "template": EDGE_NAMES[w][1]}
+                     for a, w in EDGE_AREAS[edge["variant"]]]
+            self.reply({"status": 1, "data": {"serial": "EDGE1", "layout": edge["layout"], "areas": areas,
+                                              "widgets": [], "revision": edge["revision"]}})
+        elif path == "/api/devices/EDGE1" and edge is not None:
+            self.reply({"code": 200, "status": 0, "device": edge["device"]})
+        elif path == "/api/stats/devices":
+            self.data(STATS_DEVICES)
+        elif path == "/api/systray":
+            self.data({"cpu_temp": "41.0 °C", "gpu_temp": "39.0 °C", "battery": {
+                "HS1": {"Device": "HS80 MAX WIRELESS", "Level": 80}, "M1": {"Device": "M75 WIRELESS", "Level": 15}}})
+        elif path == "/api/media/playback":
+            self.data({"title": "Song", "artists": ["Artist"], "position": 65, "length": 200})
+        elif path.startswith("/api/media/"):
+            self.data("")
+        elif path == "/api/cpuTemp/clean":
+            self.data(41)
+        elif path == "/api/gpuTemp/clean":
+            self.data(78)
+        elif path == "/api/stats/storage":
+            self.data([{"MountPoint": "/", "Device": "/dev/nvme0n1p3", "Filesystem": "btrfs", "Total": 1000204886016,
+                        "Used": 250051221504, "Available": 750153664512, "UsedPercent": 25.0, "AvailableData": True},
+                       {"MountPoint": "/mnt/games", "Device": "/dev/sdb1", "Filesystem": "ext4", "Total": 0,
+                        "Used": 0, "Available": 0, "UsedPercent": 0, "AvailableData": False}])
+        elif path.startswith("/weather"):
+            self.reply({"current": {"temperature_2m": 12.4, "apparent_temperature": 10.1, "relative_humidity_2m": 81,
+                                    "weather_code": 3, "wind_speed_10m": 14.2, "is_day": 1,
+                                    "precipitation_probability": 20},
+                        "hourly": {"time": ["2000-01-01T10:00", "2999-01-01T11:00", "2999-01-01T12:00",
+                                            "2999-01-01T13:00", "2999-01-01T14:00", "2999-01-01T15:00"],
+                                   "temperature_2m": [9, 11, 12, 13, 12, 10]}})
+        else:
+            return False
+        return True
 
     def keyboard_keys(self):
         profile = self.state.keyboard["DeviceProfile"]

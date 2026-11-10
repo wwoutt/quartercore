@@ -15,9 +15,10 @@ def tr(text):
 
 
 class Tray(QObject):
-    def __init__(self, backend, icon, show_window, quit_app, parent=None):
+    def __init__(self, backend, icon, show_window, quit_app, parent=None, settings=None):
         super().__init__(parent)
         self.backend = backend
+        self.settings = settings
         self.show_window = show_window
         self.icon = QSystemTrayIcon(QIcon(icon), self)
         self.menu = QMenu()
@@ -72,6 +73,11 @@ class Tray(QObject):
             sub.addSeparator()
             sub.addAction(tr("Open page"), lambda s=hub["serial"]: self.open_device(s))
 
+        if self.settings is not None:
+            kiosk = menu.addAction(QIcon.fromTheme("video-display"), tr("Kiosk on the XENEON EDGE"))
+            kiosk.setCheckable(True)
+            kiosk.setChecked(self.settings.edgeKiosk)
+            kiosk.toggled.connect(lambda on: setattr(self.settings, "edgeKiosk", on))
         menu.addAction(QIcon.fromTheme("video-display"), tr("XENEON EDGE layout"), self.backend.openXeneonEditor)
         menu.addAction(QIcon.fromTheme("internet-web-browser"), tr("OpenLinkHub web interface"),
                        lambda: self.backend.openInBrowser(""))
