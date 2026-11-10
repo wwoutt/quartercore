@@ -11,3 +11,5 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="1c05|1c06|1c07|
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="1d0d", TAG+="uaccess"
 # HS80 MAX WIRELESS dongles (0a97, 2a0f, and 2a0c for the XBOX receiver)
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", ATTRS{idProduct}=="0a97|2a0f|2a0c", TAG+="uaccess"
+# Virtual keyboard and mouse for button actions and macros (like OpenLinkHub's rule for uinput)
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess"

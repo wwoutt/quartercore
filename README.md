@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.13 has:
+- Version 0.14 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -132,11 +132,15 @@ it drives:
 - **The HS80 MAX WIRELESS headset** (through its USB dongle): battery, device
   profiles, the RGB effects (zone colours, static, off and the animated effects,
   ported from OpenLinkHub), brightness, mic LED, sidetone, sleep timer and the
-  button as "Profile switch". On stop the dongle and headset go back to hardware
-  mode. Not yet: media keys, keys, mouse buttons and macros on the button (they
-  need uinput, step E); the equalizer is saved but not applied, as OpenLinkHub
-  does with its audio module off; muting only changes the mic LED. On the first
-  start it takes over OpenLinkHub's headset profiles, button and RGB settings.
+  button (media keys, keys, mouse buttons, macros and profile switch). On stop
+  the dongle and headset go back to hardware mode. Not yet: the equalizer is
+  saved but not applied, as OpenLinkHub does with its audio module off; muting
+  only changes the mic LED. On the first start it takes over OpenLinkHub's
+  headset profiles, button and RGB settings.
+- **A virtual keyboard and mouse** (`/dev/uinput`) for button actions and macros,
+  made the first time a button needs them. Macros are still made in OpenLinkHub
+  and read from its `database/macros/`; moving the mouse to an absolute position
+  isn't ported yet.
 
 It only takes over a device when OpenLinkHub runs and leaves that device alone,
 so the two never drive the same device. `./install.sh` installs it, but it
@@ -164,6 +168,10 @@ sudo systemctl restart OpenLinkHub
 ```
 quartercore-core takes it over within ten seconds. Back: the same with `true`
 and a restart of OpenLinkHub.
+
+Since 0.14 the udev rule also gives you `/dev/uinput`; after updating, install
+the rule again (the first two lines below) and run
+`sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput`.
 
 **Switch the HS80 MAX WIRELESS over** (product id 2711 is its dongle):
 ```bash

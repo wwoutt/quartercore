@@ -169,8 +169,10 @@ class Hs80Test(unittest.TestCase):
         self.tmp.cleanup()
 
     def make(self):
+        self.input_calls = []
+        recorder = type("Recorder", (), {"__getattr__": lambda _, name: lambda *a: self.input_calls.append((name,) + a)})
         self.headset = hs80.Hs80(INFO, self.store, self.dongle.open, serial="553F75E3327B1415",
-                                 sleep=lambda s: None, temps=FakeTemps())
+                                 sleep=lambda s: None, temps=FakeTemps(), input_devices=recorder())
         return self.headset
 
     def start(self):
@@ -317,7 +319,15 @@ class Hs80Test(unittest.TestCase):
         # The scroll press switches profiles once set to "Profile switch"
         button = {"keyIndex": 1, "enabled": False, "pressAndHold": False, "onRelease": False,
                   "keyAssignmentType": 3, "keyAssignmentValue": 30}
-        self.assertIn("don't work", headset.handle("/api/headset/updateKeyAssignment", button))
+        self.assertEqual(headset.handle("/api/headset/updateKeyAssignment", button), "")
+        self.dongle.events.put(event(0x03, 0x01, 0x02, 0x01))
+        self.dongle.events.put(event(0x03, 0x01, 0x02, 0x00))
+        self.assertTrue(wait(lambda: ("key", 30) in self.input_calls))
+        self.assertEqual(headset.handle("/api/headset/updateKeyAssignment", dict(button, pressAndHold=True)), "")
+        self.dongle.events.put(event(0x03, 0x01, 0x02, 0x01))
+        self.assertTrue(wait(lambda: ("key_hold", 30, True) in self.input_calls))
+        self.dongle.events.put(event(0x03, 0x01, 0x02, 0x00))
+        self.assertTrue(wait(lambda: ("key_hold", 30, False) in self.input_calls))
         self.assertEqual(headset.handle("/api/headset/updateKeyAssignment", dict(button, keyAssignmentType=11)), "")
         self.dongle.events.put(event(0x03, 0x01, 0x02, 0x01))
         self.dongle.events.put(event(0x03, 0x01, 0x02, 0x00))

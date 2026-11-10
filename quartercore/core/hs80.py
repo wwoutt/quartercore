@@ -16,8 +16,8 @@
 #   audio module only, which is off by default;
 # - the mic mute only changes the mic LED; upstream also toggles the default
 #   PulseAudio source, which a system service can't reach;
-# - the button does "Profile switch"; media keys, keys, mouse buttons and
-#   macros need uinput and come with step E of the roadmap.
+# - the virtual keyboard and mouse are quartercore-core's own (inputs.py),
+#   macros are still read from OpenLinkHub's database (macros.py).
 
 import copy
 import json
@@ -26,7 +26,7 @@ import struct
 import threading
 import time
 
-from . import hid, rgb, temperatures
+from . import hid, inputs, macros, rgb, temperatures
 from .xeneon import usb_serial
 
 VENDOR = 0x1B1C
@@ -58,7 +58,6 @@ RGB_MODES = ["colorpulse", "colorshift", "colorwarp", "cpu-temperature", "flicke
 SLEEP_MODES = {0: "Off", 1: "1 minute", 5: "5 minutes", 10: "10 minutes", 15: "15 minutes", 30: "30 minutes",
                60: "1 hour"}
 KEY_TYPES = {0: "None", 1: "Media Keys", 3: "Keyboard", 9: "Mouse", 10: "Macro", 11: "Profile Switch"}
-WORKING_TYPES = {0, 11}
 BANDS = ["32", "64", "125", "250", "500", "1K", "2K", "4K", "8K", "16K"]
 NAME = re.compile(r"^[a-zA-Z0-9]+$")
 
@@ -135,13 +134,15 @@ def read_openlinkhub(path):
 
 class Hs80:
     def __init__(self, info, store, opener=hid.HidDevice, serial=None, clock=time.monotonic,
-                 sleep=time.sleep, temps=None):
+                 sleep=time.sleep, temps=None, input_devices=None, player=None):
         self.info = info
         self.store = store
         self.opener = opener
         self.clock = clock
         self.sleep = sleep
         self.temps = temps or temperatures.Temperatures()
+        self.inputs = input_devices or inputs.shared()
+        self.player = player or macros.Player(self.inputs)
         interface, self.headset_id, fixed = DONGLES[info["product"]]
         self.dongle_serial = serial or usb_serial(info["usbPath"]) or hid.serial_for(info["usbPath"])
         self.serial = fixed or self.dongle_serial + "W"
@@ -453,7 +454,7 @@ class Hs80:
             self.set_color()
 
     def trigger(self, value):
-        """TriggerKeyAssignment: one bit per button; only "Profile switch" does something here."""
+        """TriggerKeyAssignment: one bit per button, pressed and released."""
         changed = value ^ self.buttons_down
         pressed, released = changed & value, changed & ~value
         self.buttons_down = value
@@ -464,11 +465,33 @@ class Hs80:
             button = self.buttons.get(str(mask))
             if button is None:
                 continue
-            down = bool(pressed & mask)
+            down, up = bool(pressed & mask), bool(released & mask)
             if button.get("onRelease"):
-                down = bool(released & mask)
-            if down and not button.get("default") and button.get("actionType") == 11:
-                self.rotate_profile()
+                down, up = up, down
+            kind, command = int(button.get("actionType") or 0), int(button.get("actionCommand") or 0)
+            hold = bool(button.get("actionHold"))
+            if up:
+                self.player.release()
+                if not button.get("default") and hold:
+                    if kind in (1, 3):
+                        self.inputs.key_hold(command, False)
+                    elif kind == 9:
+                        self.inputs.click_hold(command, False)
+            if down and not button.get("default"):
+                if kind in (1, 3):
+                    if hold:
+                        self.inputs.key_hold(command, True)
+                    else:
+                        self.inputs.key(command)
+                elif kind == 9:
+                    if hold:
+                        self.inputs.click_hold(command, True)
+                    else:
+                        self.inputs.click(command)
+                elif kind == 10:
+                    threading.Thread(target=self.player.play, args=(command,), daemon=True).start()
+                elif kind == 11:
+                    self.rotate_profile()
 
     def rotate_profile(self):
         order = sorted(self.profiles)
@@ -615,8 +638,6 @@ class Hs80:
             button = self.buttons.get(str(body.get("keyIndex")))
             if button is None or kind not in KEY_TYPES:
                 return "Unable to apply key assignment"
-            if not enabled and kind not in WORKING_TYPES:
-                return "Media keys, keys, mouse buttons and macros don't work with quartercore-core yet"
             button.update({"default": enabled, "actionType": kind,
                            "actionCommand": number("keyAssignmentValue") or 0, "actionHold": hold,
                            "onRelease": release})

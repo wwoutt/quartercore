@@ -398,6 +398,5 @@
   "Reset the XENEON EDGE?": "De XENEON EDGE terugzetten?",
   "Screen": "Scherm",
   "The factory values are red 150, green 126 and blue 140.": "De fabriekswaarden zijn rood 150, groen 126 en blauw 140.",
-  "quartercore-core saves the equalizer but doesn't apply it yet, like OpenLinkHub with its audio module off.": "quartercore-core bewaart de equalizer maar past hem nog niet toe, net als OpenLinkHub met de audiomodule uit.",
-  "With quartercore-core a button can switch profiles; media keys, keys, mouse buttons and macros come later.": "Met quartercore-core kan een knop van profiel wisselen; mediatoetsen, toetsen, muisknoppen en macro's komen later."
+  "quartercore-core saves the equalizer but doesn't apply it yet, like OpenLinkHub with its audio module off.": "quartercore-core bewaart de equalizer maar past hem nog niet toe, net als OpenLinkHub met de audiomodule uit."
 }

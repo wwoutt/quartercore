@@ -298,13 +298,6 @@ Flickable {
                 anchors.fill: parent
                 spacing: 8
                 Label { text: qsTr("Buttons"); font.bold: true }
-                Label {
-                    visible: hs.drivenBy === "quartercore-core"
-                    Layout.fillWidth: true
-                    wrapMode: Text.WordWrap
-                    opacity: 0.6
-                    text: qsTr("With quartercore-core a button can switch profiles; media keys, keys, mouse buttons and macros come later.")
-                }
                 Repeater {
                     model: hs.buttons || []
                     delegate: RowLayout {

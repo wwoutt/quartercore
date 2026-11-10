@@ -7,7 +7,7 @@ import signal
 import sys
 import threading
 
-from . import hs80, psu, xeneon
+from . import hs80, inputs, psu, xeneon
 from .server import Core, serve
 from .store import Store
 
@@ -34,6 +34,7 @@ def main(argv=None):
     def shutdown(*_):
         log("stopping")
         core.stop()
+        inputs.close_shared()
         threading.Thread(target=server.shutdown, daemon=True).start()
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
