@@ -16,7 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer  # noqa: E402
 
-from openlinkhub_desktop.backend import Backend, link_hub_view  # noqa: E402
+from quartercore.backend import Backend, link_hub_view  # noqa: E402
 
 HUB = {
     "serial": "HUB1", "product": "iCUE LINK System Hub", "firmware": "1.0", "Template": "lsh.html",

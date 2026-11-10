@@ -1,4 +1,4 @@
-# OpenLinkHub Desktop: native KDE/Qt interface for OpenLinkHub
+# Quartercore: native KDE/Qt interface for OpenLinkHub
 # Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 # License: GPL-3.0 or later
 #

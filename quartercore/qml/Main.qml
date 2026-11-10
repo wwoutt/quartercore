@@ -13,7 +13,7 @@ ApplicationWindow {
     minimumWidth: 760
     minimumHeight: 480
     visible: true
-    title: "OpenLinkHub Desktop"
+    title: "Quartercore"
 
     RowLayout {
         anchors.fill: parent
@@ -30,7 +30,7 @@ ApplicationWindow {
                 spacing: 0
 
                 Label {
-                    text: "OpenLinkHub"
+                    text: "Quartercore"
                     font.pixelSize: 20
                     font.bold: true
                     Layout.margins: 16

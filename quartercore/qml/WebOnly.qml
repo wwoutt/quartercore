@@ -18,7 +18,7 @@ Item {
             Layout.alignment: Qt.AlignHCenter
         }
         Label {
-            text: "This device doesn't have a page in OpenLinkHub Desktop yet. "
+            text: "This device doesn't have a page in Quartercore yet. "
                   + "You can manage it in the OpenLinkHub web interface in the meantime."
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter

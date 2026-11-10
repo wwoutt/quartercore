@@ -1,18 +1,23 @@
-# OpenLinkHub Desktop
+# Quartercore
 
-A native KDE/Qt desktop program for [OpenLinkHub](https://github.com/jurkovic-nikola/OpenLinkHub),
+**Control your Corsair devices on Linux from a native desktop program.**
+
+The name: a *corsair* is a privateer ship, and its *quartermaster* looks after the
+ship's gear. Quartercore does that for the gear in your computer, around its *core*.
+
+Quartercore is a native KDE/Qt desktop program for [OpenLinkHub](https://github.com/jurkovic-nikola/OpenLinkHub),
 the open-source Linux interface for Corsair devices by
 **[Nikola Jurković](https://github.com/jurkovic-nikola)**.
 
 OpenLinkHub runs as a service and is normally controlled from its web interface.
-OpenLinkHub Desktop controls the same service from a normal desktop window instead,
+Quartercore controls the same service from a normal desktop window instead,
 with the look of your KDE Plasma desktop. All credit for OpenLinkHub itself, the
 device support and its API goes to Nikola Jurković and the OpenLinkHub contributors.
 
 > **Not an official Corsair product**, and not affiliated with or endorsed by Corsair.
 > Corsair, iCUE and XENEON are trademarks of Corsair, used here only to say which
 > hardware OpenLinkHub works with. Not part of upstream OpenLinkHub and not maintained
-> by its author: report problems [here](https://github.com/wwoutt/openlinkhub-desktop/issues).
+> by its author: report problems [here](https://github.com/wwoutt/quartercore/issues).
 
 ## Who built this
 Written by **Claude**, an AI model made by [Anthropic](https://www.anthropic.com),
@@ -49,10 +54,10 @@ not audited by an independent developer.
 
 ## Install
 ```bash
-./install.sh            # installs for your user, adds "OpenLinkHub Desktop" to the menu
+./install.sh            # installs for your user, adds "Quartercore" to the menu
 ./install.sh --remove   # uninstalls
 ```
-Or run it from the source folder: `python3 -m openlinkhub_desktop [--url http://host:port]`.
+Or run it from the source folder: `python3 -m quartercore [--url http://host:port]`.
 
 ## Tested on
 Bazzite 44 (Fedora Atomic), KDE Plasma 6, PySide6 6.11, OpenLinkHub 0.9.4 with an

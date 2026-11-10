@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Quartercore
+GenericName=Hardware control
+Comment=Control your Corsair devices on Linux (fans, pumps, lighting) through OpenLinkHub
+Exec=quartercore
+Icon=quartercore
+Terminal=false
+Categories=Settings;HardwareSettings;Qt;KDE;
+Keywords=fan;rgb;lighting;corsair;openlinkhub;
+StartupWMClass=quartercore
