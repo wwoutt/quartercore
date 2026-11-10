@@ -60,6 +60,7 @@ class Backend(QObject):
     devicesChanged = Signal()
     activeChanged = Signal()
     speedProfilesChanged = Signal()
+    serverUrlChanged = Signal()
     # Feedback for the user: text, ok
     notify = Signal(str, bool)
 
@@ -104,6 +105,11 @@ class Backend(QObject):
     def devices(self):
         return self._devices
 
+    @Property("QVariantList", notify=devicesChanged)
+    def hubs(self):
+        """Devices with a native LINK Hub page (for the tray menu)."""
+        return [d for d in self._devices if d["page"] == "linkhub"]
+
     @Property(str, notify=activeChanged)
     def activeSerial(self):
         return self._active_serial
@@ -116,7 +122,7 @@ class Backend(QObject):
     def speedProfiles(self):
         return self._speed_profiles
 
-    @Property(str, constant=True)
+    @Property(str, notify=serverUrlChanged)
     def serverUrl(self):
         return self.base_url
 
@@ -218,7 +224,7 @@ class Backend(QObject):
         serial = self._active_serial
 
         def done(ok, data, error):
-            message = (data or {}).get("message") or error or ("OK" if ok else "Failed")
+            message = (data or {}).get("message") or error or (self.tr("Done") if ok else self.tr("Failed"))
             self.notify.emit(str(message), ok)
             if serial and serial == self._active_serial:
                 self._load_active(serial)
@@ -234,6 +240,27 @@ class Backend(QObject):
             if ch["hasSpeed"]:
                 self.setSpeedProfile(ch["channelId"], profile)
 
+    @Slot(str, str)
+    def setHubSpeedProfile(self, serial, profile):
+        """Speed profile for every fan and pump of a hub, also when it isn't the open page (tray menu)."""
+        def done(ok, data, error):
+            if not ok:
+                self.notify.emit(error, False)
+                return
+            view = link_hub_view(data.get("device") or {})
+            for ch in view["channels"]:
+                if ch["hasSpeed"]:
+                    self.api.post("/api/speed", {"deviceId": serial, "channelId": ch["channelId"],
+                                                 "profile": profile}, report)
+            self.notify.emit(self.tr("Speed profile %1 set").replace("%1", profile), True)
+
+        def report(ok, data, error):
+            if not ok:
+                self.notify.emit(str((data or {}).get("message") or error), False)
+            elif serial == self._active_serial:
+                self._load_active(serial)
+        self.api.get("/api/devices/" + serial, done)
+
     @Slot(int, str)
     def setRgbProfile(self, channel, profile):
         self._change("/api/color", {"deviceId": self._active_serial, "channelId": channel, "profile": profile})
@@ -248,7 +275,7 @@ class Backend(QObject):
     def setLabel(self, channel, label):
         label = label.strip()
         if not label:
-            self.notify.emit("A label can't be empty", False)
+            self.notify.emit(self.tr("A label can't be empty"), False)
             return
         self._change("/api/label", {"deviceId": self._active_serial, "channelId": channel,
                                     "deviceType": 0, "label": label})
@@ -257,6 +284,20 @@ class Backend(QObject):
     def setBrightness(self, value):
         self._change("/api/brightness/gradual", {"deviceId": self._active_serial,
                                                  "brightness": max(0, min(100, int(value)))})
+
+    @Slot(str)
+    def setServerUrl(self, url):
+        """Connects to another OpenLinkHub address (from the settings page)."""
+        self.api.base_url = self.base_url = url.rstrip("/")
+        self._templates.clear()
+        self._devices, self._active_serial, self._active = [], "", {}
+        self._set_connected(False, "")
+        self.devicesChanged.emit()
+        self.activeChanged.emit()
+        self.serverUrlChanged.emit()
+        self.refreshDevices()
+        self.refreshSpeedProfiles()
+        self.refresh()
 
     @Slot(str)
     def openInBrowser(self, serial):

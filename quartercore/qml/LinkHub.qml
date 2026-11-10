@@ -48,11 +48,11 @@ Flickable {
             ColumnLayout {
                 spacing: 0
                 Label { text: hub.product || ""; font.pixelSize: 26 }
-                Label { text: "Firmware " + (hub.firmware || "–"); opacity: 0.6 }
+                Label { text: qsTr("Firmware %1").arg(hub.firmware || "–"); opacity: 0.6 }
             }
             Item { Layout.fillWidth: true }
             Button {
-                text: "Open in browser"
+                text: qsTr("Open in browser")
                 icon.name: "internet-web-browser"
                 onClicked: backend.openInBrowser(hub.serial)
             }
@@ -70,7 +70,7 @@ Flickable {
                 columnSpacing: 16
                 rowSpacing: 8
 
-                Label { text: "Brightness" }
+                Label { text: qsTr("Brightness") }
                 Slider {
                     id: brightness
                     Layout.fillWidth: true
@@ -82,18 +82,18 @@ Flickable {
                 }
                 Label { text: Math.round(brightness.value) + " %"; Layout.preferredWidth: 50 }
 
-                Label { text: "All fans and pump" }
+                Label { text: qsTr("All fans and pump") }
                 ComboBox {
                     Layout.fillWidth: true
-                    model: ["Choose a speed profile…"].concat(backend.speedProfiles)
+                    model: [qsTr("Choose a speed profile…")].concat(backend.speedProfiles)
                     onActivated: index => { if (index > 0) backend.setAllSpeedProfiles(currentText); currentIndex = 0 }
                 }
                 Item {}
 
-                Label { text: "All lighting" }
+                Label { text: qsTr("All lighting") }
                 ComboBox {
                     Layout.fillWidth: true
-                    model: ["Choose an RGB profile…"].concat(hub.rgbModes || [])
+                    model: [qsTr("Choose an RGB profile…")].concat(hub.rgbModes || [])
                     onActivated: index => { if (index > 0) backend.setAllRgbProfiles(currentText); currentIndex = 0 }
                 }
                 Item {}
@@ -101,7 +101,7 @@ Flickable {
         }
 
         Label {
-            text: channels.count + " connected devices"
+            text: qsTr("%1 connected devices").arg(channels.count)
             font.pixelSize: 18
             Layout.leftMargin: 24
             Layout.topMargin: 8

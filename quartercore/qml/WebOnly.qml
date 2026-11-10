@@ -18,15 +18,14 @@ Item {
             Layout.alignment: Qt.AlignHCenter
         }
         Label {
-            text: "This device doesn't have a page in Quartercore yet. "
-                  + "You can manage it in the OpenLinkHub web interface in the meantime."
+            text: qsTr("This device doesn't have a page in Quartercore yet. You can manage it in the OpenLinkHub web interface in the meantime.")
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter
             opacity: 0.8
             Layout.fillWidth: true
         }
         Button {
-            text: "Open in browser"
+            text: qsTr("Open in browser")
             icon.name: "internet-web-browser"
             Layout.alignment: Qt.AlignHCenter
             onClicked: backend.openInBrowser(backend.activeSerial)

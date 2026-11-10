@@ -12,8 +12,24 @@ ApplicationWindow {
     height: 760
     minimumWidth: 760
     minimumHeight: 480
-    visible: true
+    // Shown from Python, so it can start in the tray only
+    visible: false
     title: "Quartercore"
+
+    property bool showSettings: false
+
+    function open(serial) {
+        showSettings = false
+        backend.selectDevice(serial)
+    }
+
+    // Closing keeps Quartercore in the tray when that is enabled
+    onClosing: close => {
+        if (trayAvailable && settings.closeToTray) {
+            close.accepted = false
+            window.hide()
+        }
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -38,14 +54,14 @@ ApplicationWindow {
 
                 ItemDelegate {
                     Layout.fillWidth: true
-                    text: "Overview"
+                    text: qsTr("Overview")
                     icon.name: "view-dashboard"
-                    highlighted: backend.activeSerial === ""
-                    onClicked: backend.selectDevice("")
+                    highlighted: !window.showSettings && backend.activeSerial === ""
+                    onClicked: window.open("")
                 }
 
                 Label {
-                    text: "Devices"
+                    text: qsTr("Devices")
                     opacity: 0.6
                     Layout.leftMargin: 16
                     Layout.topMargin: 12
@@ -61,20 +77,28 @@ ApplicationWindow {
                         width: ListView.view.width
                         text: modelData.product
                         icon.name: modelData.page === "web" ? "internet-web-browser" : "preferences-system"
-                        highlighted: backend.activeSerial === modelData.serial
-                        onClicked: backend.selectDevice(modelData.serial)
+                        highlighted: !window.showSettings && backend.activeSerial === modelData.serial
+                        onClicked: window.open(modelData.serial)
                     }
                 }
 
                 ItemDelegate {
                     Layout.fillWidth: true
-                    text: "XENEON EDGE layout"
+                    text: qsTr("XENEON EDGE layout")
                     icon.name: "video-display"
                     onClicked: backend.openXeneonEditor()
                 }
 
+                ItemDelegate {
+                    Layout.fillWidth: true
+                    text: qsTr("Settings")
+                    icon.name: "configure"
+                    highlighted: window.showSettings
+                    onClicked: window.showSettings = true
+                }
+
                 Label {
-                    text: (backend.connected ? "Connected" : "Not connected") + " · v" + appVersion
+                    text: (backend.connected ? qsTr("Connected") : qsTr("Not connected")) + " · v" + appVersion
                     opacity: 0.6
                     font.pixelSize: 12
                     Layout.margins: 16
@@ -96,7 +120,8 @@ ApplicationWindow {
 
             Loader {
                 anchors.fill: parent
-                source: !backend.connected ? "Disconnected.qml"
+                source: window.showSettings ? "SettingsPage.qml"
+                      : !backend.connected ? "Disconnected.qml"
                       : backend.activeSerial === "" ? "Overview.qml"
                       : backend.active.page === "linkhub" ? "LinkHub.qml"
                       : backend.active.page === "web" ? "WebOnly.qml"
@@ -118,6 +143,11 @@ ApplicationWindow {
         function onNotify(text, ok) {
             toast.text = (ok ? "✓ " : "⚠ ") + text
             toast.open()
+        }
+        // Opening a device from the tray menu leaves the settings page
+        function onActiveChanged() {
+            if (backend.activeSerial !== "")
+                window.showSettings = false
         }
     }
 }

@@ -21,7 +21,7 @@ Flickable {
         spacing: 16
 
         Label {
-            text: "Overview"
+            text: qsTr("Overview")
             font.pixelSize: 26
             Layout.leftMargin: 24
             Layout.topMargin: 20
@@ -35,15 +35,15 @@ Flickable {
             columnSpacing: 12
             rowSpacing: 12
 
-            StatCard { title: "CPU temperature"; value: sys.cpuTemp || "–" }
-            StatCard { title: "CPU load"; value: sys.cpuLoad !== undefined ? Math.round(sys.cpuLoad) + " %" : "–" }
-            StatCard { title: "GPU temperature"; value: sys.gpuTemp || "–" }
-            StatCard { title: "GPU load"; value: sys.gpuLoad !== undefined ? Math.round(sys.gpuLoad) + " %" : "–" }
+            StatCard { title: qsTr("CPU temperature"); value: sys.cpuTemp || "–" }
+            StatCard { title: qsTr("CPU load"); value: sys.cpuLoad !== undefined ? Math.round(sys.cpuLoad) + " %" : "–" }
+            StatCard { title: qsTr("GPU temperature"); value: sys.gpuTemp || "–" }
+            StatCard { title: qsTr("GPU load"); value: sys.gpuLoad !== undefined ? Math.round(sys.gpuLoad) + " %" : "–" }
             StatCard {
-                title: "Memory"
+                title: qsTr("Memory")
                 value: sys.memory ? Math.round(sys.memory.UsedPercent) + " %" : "–"
-                detail: sys.memory ? (sys.memory.Used / 1073741824).toFixed(1) + " of "
-                                     + (sys.memory.Total / 1073741824).toFixed(0) + " GB" : ""
+                detail: sys.memory ? qsTr("%1 of %2 GB").arg((sys.memory.Used / 1073741824).toFixed(1))
+                                     .arg((sys.memory.Total / 1073741824).toFixed(0)) : ""
             }
             Repeater {
                 model: sys.storage || []
@@ -52,7 +52,7 @@ Flickable {
         }
 
         Label {
-            text: "Devices"
+            text: qsTr("Devices")
             font.pixelSize: 18
             Layout.leftMargin: 24
             Layout.topMargin: 8
@@ -64,7 +64,7 @@ Flickable {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
-                text: modelData.product + (modelData.page === "web" ? "   (opens in the browser for now)" : "")
+                text: modelData.product + (modelData.page === "web" ? "   " + qsTr("(opens in the browser for now)") : "")
                 onClicked: backend.selectDevice(modelData.serial)
             }
         }

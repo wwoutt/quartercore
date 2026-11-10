@@ -28,12 +28,18 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.1 (milestone 1) has:
+- Version 0.2 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
     temperature, speed profile, RGB profile and label per device, and brightness,
     speed and lighting for all of them at once.
+  - **Tray icon**: CPU and GPU temperature in the tooltip and menu, a speed profile
+    for all fans and pump of a hub in two clicks, quick links to the XENEON EDGE
+    layout and the web interface. Closing the window keeps Quartercore in the tray.
+  - **Settings**: OpenLinkHub address, language (English, Dutch or the system
+    language), start at login (optionally only in the tray), close to tray.
+  - Starting Quartercore again shows the open window instead of a second copy.
   - Devices without a page yet open in the OpenLinkHub web interface.
 
 ## What it is not
@@ -66,8 +72,11 @@ iCUE LINK System Hub (12 RX RGB fans and a TITAN 360 AIO).
 ## Development
 - `python3 -m unittest discover -s tests`: tests against a fake OpenLinkHub
   (they never touch real hardware)
-- `tools/screenshot.sh out.png [serial]`: grabs the window offscreen against a running
-  OpenLinkHub
+- `tools/screenshot.sh out.png [serial|settings]`: grabs the window offscreen against a
+  running OpenLinkHub
+- `tools/tray-check.sh`: checks the tray icon and the single instance in your desktop session
+- Translations: `quartercore/i18n/<language>.json` maps the English texts to the
+  translation; the tests fail when a text has no Dutch translation
 
 ## License
 [GPL-3.0](LICENSE) or later, like OpenLinkHub.

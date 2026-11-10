@@ -6,7 +6,7 @@ has its own page, it opens in the OpenLinkHub web interface. Estimates are rough
 | # | Milestone | Status |
 |---|---|---|
 | 1 | Overview, iCUE LINK System Hub (speed, RGB, labels, brightness) | **done** (0.1) |
-| 2 | Tray icon, start with the desktop session, settings (server URL, language) | planned |
+| 2 | Tray icon, start with the desktop session, settings (server URL, language) | **done** (0.2) |
 | 3 | Temperature (speed) profiles: list, create, edit curves | planned |
 | 4 | RGB profiles and colour editing (static colours, effects, speed) | planned |
 | 5 | HX1500i and other power supplies | planned |

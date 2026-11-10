@@ -136,6 +136,13 @@ class BackendTest(unittest.TestCase):
         self.assertTrue(wait(lambda: len(FakeOpenLinkHub.posted) == 2))
         self.assertEqual(sorted(b["channelId"] for _, b in FakeOpenLinkHub.posted), [2, 13])
 
+    def test_hub_speed_profile_from_the_tray(self):
+        # Works without opening the hub page first
+        self.backend.setHubSpeedProfile("HUB1", "Quiet")
+        self.assertTrue(wait(lambda: len(FakeOpenLinkHub.posted) == 2))
+        self.assertEqual(sorted((p, b["channelId"], b["profile"]) for p, b in FakeOpenLinkHub.posted),
+                         [("/api/speed", 2, "Quiet"), ("/api/speed", 13, "Quiet")])
+
     def test_refused_change_is_reported(self):
         self.select_hub()
         self.backend.setSpeedProfile(13, "Missing")

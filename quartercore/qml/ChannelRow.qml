@@ -34,7 +34,7 @@ Frame {
                 }
             }
             Label {
-                text: (label !== "" ? name + " · " : "") + kind + " · channel " + channelId
+                text: (label !== "" ? name + " · " : "") + kind + " · " + qsTr("channel %1").arg(channelId)
                 opacity: 0.6
                 font.pixelSize: 12
                 elide: Text.ElideRight
@@ -60,7 +60,7 @@ Frame {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 2
-            Label { text: "Speed profile"; opacity: 0.6; font.pixelSize: 12 }
+            Label { text: qsTr("Speed profile"); opacity: 0.6; font.pixelSize: 12 }
             ComboBox {
                 Layout.fillWidth: true
                 enabled: hasSpeed
@@ -73,7 +73,7 @@ Frame {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 2
-            Label { text: "RGB profile"; opacity: 0.6; font.pixelSize: 12 }
+            Label { text: qsTr("RGB profile"); opacity: 0.6; font.pixelSize: 12 }
             ComboBox {
                 Layout.fillWidth: true
                 enabled: !isProbe

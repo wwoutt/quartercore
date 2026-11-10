@@ -14,12 +14,12 @@ Item {
 
         BusyIndicator { Layout.alignment: Qt.AlignHCenter }
         Label {
-            text: "Connecting to OpenLinkHub…"
+            text: qsTr("Connecting to OpenLinkHub…")
             font.pixelSize: 20
             Layout.alignment: Qt.AlignHCenter
         }
         Label {
-            text: "Is the OpenLinkHub service running at " + backend.serverUrl + "?"
+            text: qsTr("Is the OpenLinkHub service running at %1?").arg(backend.serverUrl)
                   + (backend.error !== "" ? "\n" + backend.error : "")
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter
