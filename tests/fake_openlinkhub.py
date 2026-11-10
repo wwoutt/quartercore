@@ -154,6 +154,30 @@ def initial_keyboard():
     }
 
 
+def initial_headset():
+    bands = ["32", "64", "125", "250", "500", "1K", "2K", "4K", "8K", "16K"]
+    return {
+        "serial": "HS1", "product": "HS80 MAX WIRELESS", "firmware": "n/a", "Template": "hs80maxW.html",
+        "Connected": True, "BatteryLevel": 80,
+        "userProfiles": {"default": {"Active": True}, "music": {"Active": False}},
+        "profileOrder": ["music", "default"],
+        "DeviceProfile": {
+            "RGBProfile": "headset", "BrightnessSlider": 100, "SleepMode": 15, "DisableMicIndicator": 1,
+            "SideTone": 0, "SideToneValue": 0,
+            "ZoneColors": {"0": {"Color": rgb(68, 255, 0), "Name": "Logo"},
+                           "1": {"Color": rgb(19, 0, 255), "Name": "Mic"}},
+            "Equalizers": {str(i + 1): {"Name": name, "Value": 0} for i, name in enumerate(bands)},
+        },
+        "RGBModes": ["headset", "off", "rainbow", "static"],
+        "SleepModes": {"0": "Off", "1": "1 minute", "15": "15 minutes", "60": "1 hour"},
+        "MuteIndicators": {"0": "Disabled", "1": "Enabled"}, "SideToneModes": {"0": "Disabled", "1": "Enabled"},
+        "KeyAssignment": {"1": {"name": "Scroll Press", "default": True, "actionType": 0, "actionCommand": 0,
+                                "actionHold": False, "onRelease": False}},
+        "KeyAssignmentTypes": {"0": "None", "1": "Media Keys", "10": "Macro", "11": "Profile Switch",
+                               "3": "Keyboard", "9": "Mouse"},
+    }
+
+
 class State:
     def __init__(self):
         self.profiles = initial_profiles()
@@ -161,6 +185,7 @@ class State:
         self.psu = copy.deepcopy(PSU)
         self.keyboard = initial_keyboard()
         self.macros = initial_macros()
+        self.headset = initial_headset()
         self.requests = []
         self.lock = threading.Lock()
 
@@ -205,13 +230,15 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/devices/":
             self.reply({"code": 200, "status": 0, "devices": {
                 "HUB1": {"Product": "iCUE LINK System Hub"}, "KB1": {"Product": "K100"},
-                "PSU1": {"Product": "HX1500i"}}})
+                "PSU1": {"Product": "HX1500i"}, "HS1": {"Product": "HS80 MAX WIRELESS"}}})
         elif self.path == "/api/devices/HUB1":
             self.reply({"code": 200, "status": 0, "device": HUB})
         elif self.path == "/api/devices/PSU1":
             self.reply({"code": 200, "status": 0, "device": s.psu})
         elif self.keyboard_read():
             pass
+        elif self.path == "/api/devices/HS1":
+            self.reply({"code": 200, "status": 0, "device": s.headset})
         elif self.path == "/api/devices/KB1":
             self.reply({"code": 200, "status": 0, "device": s.keyboard})
         elif self.path.startswith("/api/color/"):
@@ -364,6 +391,95 @@ class Handler(BaseHTTPRequestHandler):
                 return
         self.refuse("Unable to apply key assignment")
 
+    def headset_change(self, method, body):
+        """Headset requests (deviceId HS1), with the checks of upstream requests.go and hs80maxW.go."""
+        hs = self.state.headset
+        profile = hs["DeviceProfile"]
+        path = self.path
+        if not hs["Connected"] and path == "/api/headset/updateKeyAssignment":
+            self.refuse("Unable to apply key assignment")
+            return
+        if path == "/api/color":
+            profile["RGBProfile"] = body["profile"]
+        elif path == "/api/brightness/gradual":
+            profile["BrightnessSlider"] = body["brightness"]
+        elif path == "/api/headset/zoneColors":
+            for zone, color in (body.get("colorZones") or {}).items():
+                if zone in profile["ZoneColors"]:
+                    profile["ZoneColors"][zone]["Color"] = rgb(color["red"], color["green"], color["blue"])
+        elif path == "/api/headset/sleep":
+            if not 0 <= body.get("sleepMode", -1) <= 60:
+                self.refuse("Invalid sleep option")
+                return
+            profile["SleepMode"] = body["sleepMode"]
+        elif path == "/api/headset/muteIndicator":
+            if body.get("muteIndicator") not in (0, 1):
+                self.refuse("Invalid indicator option")
+                return
+            profile["DisableMicIndicator"] = body["muteIndicator"]
+        elif path == "/api/headset/sidetone":
+            if body.get("sideTone") not in (0, 1):
+                self.refuse("Invalid sidetone")
+                return
+            profile["SideTone"] = body["sideTone"]
+        elif path == "/api/headset/sidetoneValue":
+            if not 0 <= body.get("sideToneValue", -1) <= 100:
+                self.refuse("Invalid sidetone")
+                return
+            if profile["SideTone"] != 1:
+                self.refuse("Sidetone is not active")
+                return
+            profile["SideToneValue"] = body["sideToneValue"]
+        elif path == "/api/headset/equalizer":
+            values = body.get("equalizers") or {}
+            if len(values) != 10 or any(not 1 <= int(k) <= 10 or not -12 <= v <= 12 for k, v in values.items()):
+                self.refuse("Unable to update equalizer")
+                return
+            if all(profile["Equalizers"][k]["Value"] == v for k, v in values.items()):
+                self.refuse("Nothing to update")
+                return
+            for k, v in values.items():
+                profile["Equalizers"][k]["Value"] = v
+        elif path == "/api/headset/updateKeyAssignment":
+            if body.get("pressAndHold") and (body.get("onRelease") or body.get("keyAssignmentType") == 10):
+                self.refuse("Press and Hold is not allowed")
+                return
+            button = hs["KeyAssignment"].get(str(body.get("keyIndex")))
+            if button is None:
+                self.refuse("Unable to apply key assignment")
+                return
+            button.update({"default": body["enabled"], "actionType": body["keyAssignmentType"],
+                           "actionCommand": body["keyAssignmentValue"], "actionHold": body["pressAndHold"],
+                           "onRelease": body["onRelease"]})
+        elif path == "/api/userProfile/change":
+            if body.get("userProfileName") not in hs["userProfiles"]:
+                self.refuse("Non-existing profile")
+                return
+            for name, p in hs["userProfiles"].items():
+                p["Active"] = name == body["userProfileName"]
+        elif path == "/api/userProfile" and method == "PUT":
+            name = body.get("userProfileName", "")
+            if not name.isalnum():
+                self.refuse("Profile name can only contain letters and numbers")
+                return
+            hs["userProfiles"][name] = {"Active": False}
+            hs["profileOrder"].append(name)
+        elif path == "/api/userProfile/delete" and method == "DELETE":
+            name = body.get("userProfileName", "")
+            if name == "default":
+                self.refuse("Default profile is required")
+                return
+            p = hs["userProfiles"].get(name)
+            if p is None or p["Active"]:
+                self.refuse("Unable to delete active profile")
+                return
+            del hs["userProfiles"][name]
+            hs["profileOrder"].remove(name)
+        else:
+            self.refuse("unknown")
+            return
+        self.ok("Done")
+
     def keyboard_change(self, body):
         """Applies a keyboard request to the fake state, with the checks OpenLinkHub does."""
         kb = self.state.keyboard
@@ -431,6 +547,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("PUT", self.path, body))
+            if body.get("deviceId") == "HS1":
+                self.headset_change("PUT", body)
+                return
             if self.path.startswith("/api/macro/"):
                 self.macro_change("PUT", body)
                 return
@@ -470,6 +589,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("POST", self.path, body))
+            if body.get("deviceId") == "HS1":
+                self.headset_change("POST", body)
+                return
             if self.path.startswith("/api/macro/"):
                 self.macro_change("POST", body)
                 return
@@ -502,6 +624,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("DELETE", self.path, body))
+            if body.get("deviceId") == "HS1":
+                self.headset_change("DELETE", body)
+                return
             if self.path.startswith("/api/macro/"):
                 self.macro_change("DELETE", body)
                 return

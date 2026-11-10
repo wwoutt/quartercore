@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from . import __version__, i18n
 from .backend import Backend
+from .headset import Headset
 from .keyboard import Keyboard
 from .lighting import Lighting
 from .profiles import Profiles
@@ -83,6 +84,8 @@ def main():
     context.setContextProperty("lighting", lighting)
     keyboard = Keyboard(backend)
     context.setContextProperty("keyboard", keyboard)
+    headset = Headset(backend)
+    context.setContextProperty("headset", headset)
     context.setContextProperty("appVersion", __version__)
     context.setContextProperty("languages", [{"code": "system", "name": ""}]
                                + [{"code": k, "name": v} for k, v in i18n.LANGUAGES.items()])

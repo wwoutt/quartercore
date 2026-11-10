@@ -9,13 +9,14 @@ from PySide6.QtCore import Property, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices
 
 from .api import ApiClient
+from .headset import TEMPLATES as HEADSET_TEMPLATES, headset_view
 from .keyboard import is_keyboard, keyboard_view
 
 SYSTEM_INTERVAL_MS = 2000
 DEVICE_LIST_INTERVAL_MS = 15000
 
 # Device pages built into this app, by the OpenLinkHub web template they replace
-NATIVE_TEMPLATES = {"lsh.html": "linkhub", "psuhid.html": "psu"}
+NATIVE_TEMPLATES = dict({"lsh.html": "linkhub", "psuhid.html": "psu"}, **{t: "headset" for t in HEADSET_TEMPLATES})
 NO_LABEL = "Set Label"
 
 
@@ -263,6 +264,8 @@ class Backend(QObject):
                 view = psu_view(device)
             elif page == "keyboard":
                 view = keyboard_view(device)
+            elif page == "headset":
+                view = headset_view(device)
             else:
                 view = {"serial": serial, "product": device.get("product") or serial}
             self._active = dict(view, page=page)
