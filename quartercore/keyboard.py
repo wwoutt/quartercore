@@ -215,7 +215,7 @@ def macro_list(data, names):
             })
         macros.append({"id": int(m.get("id", macro_id)), "name": m.get("name") or "",
                        "repeat": int(m.get("repeat") or 0), "repeatDelay": int(m.get("repeatDelay") or 0),
-                       "steps": steps})
+                       "steps": steps, "gapsAllowed": bool(m.get("gapsAllowed"))})
     return sorted(macros, key=lambda m: m["id"])
 
 

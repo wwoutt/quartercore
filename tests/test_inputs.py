@@ -110,14 +110,14 @@ class InputsTest(unittest.TestCase):
 class MacroTest(unittest.TestCase):
     def test_play_and_release(self):
         with tempfile.TemporaryDirectory() as tmp:
-            (Path(tmp) / "3.json").write_text(json.dumps({"id": 3, "name": "m", "actions": {
+            (Path(tmp) / "mmm.json").write_text(json.dumps({"id": 3, "name": "mmm", "actions": {
                 "0": {"actionType": 3, "actionCommand": 30, "actionHold": True},
                 "1": {"actionType": 5, "actionDelay": 250},
                 "2": {"actionType": 6, "actionText": "hi", "actionRepeat": 2, "actionRepeatDelay": 100},
                 "3": {"actionType": 9, "actionCommand": 91},
                 "10": {"actionType": 20, "mousePositionX": 4, "mousePositionY": 0}}}))
             fake, sleeps = RecordingInputs(), []
-            player = macros.Player(fake, tmp, sleeps.append)
+            player = macros.Player(fake, macros.MacroStore(tmp, Path(tmp) / "none"), sleeps.append)
             self.assertEqual(player.play(3), "")
             self.assertEqual(player.play(4), "Invalid macro profile")
         self.assertEqual(fake.calls, [("key", 30, True), ("text", "hi"), ("text", "hi"), ("click", 91),
@@ -128,15 +128,100 @@ class MacroTest(unittest.TestCase):
 
     def test_keyboard_repeats_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
-            (Path(tmp) / "1.json").write_text(json.dumps({"id": 1, "actions": {
+            (Path(tmp) / "rep.json").write_text(json.dumps({"id": 1, "name": "rep", "actions": {
                 "0": {"actionType": 9, "actionCommand": 91, "actionRepeat": 2},
                 "1": {"actionType": 9, "actionCommand": 92, "actionHold": True}}}))
             fake = RecordingInputs()
-            player = macros.Player(fake, tmp, lambda s: None)
+            player = macros.Player(fake, macros.MacroStore(tmp, Path(tmp) / "none"), lambda s: None)
             player.play(1, keyboard=True)
         self.assertEqual(fake.calls, [("click", 91), ("click", 91), ("click_hold", 92, True)])
         player.release()
         self.assertEqual(fake.calls[-1], ("click_hold", 92, False))
+
+
+
+class MacroStoreTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        (root / "olh").mkdir()
+        (root / "olh" / "hello.json").write_text(json.dumps({"id": 4, "name": "Hello", "repeat": 0, "repeatDelay": 0,
+                                                            "actions": {"0": macros.step(3, 30)}}))
+        (root / "olh" / "broken.json").write_text("{")
+        self.store = macros.MacroStore(root / "own", root / "olh")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_takes_over_openlinkhubs_macros_once(self):
+        self.assertEqual(list(self.store.all()), ["4"])
+        self.assertTrue((Path(self.tmp.name) / "own" / "hello.json").exists())
+        (Path(self.tmp.name) / "olh" / "other.json").write_text(json.dumps({"id": 9, "name": "Other", "actions": {}}))
+        self.assertEqual(list(macros.MacroStore(Path(self.tmp.name) / "own", Path(self.tmp.name) / "olh").all()), ["4"])
+
+    def test_make_change_and_delete(self):
+        s = self.store
+        self.assertEqual(s.handle("PUT", "/api/macro/new", {"macroName": "ab"}), "A macro name needs at least 3 characters")
+        self.assertEqual(s.handle("PUT", "/api/macro/new", {"macroName": "hello"}), "Unable to create macro profile")
+        self.assertEqual(s.handle("PUT", "/api/macro/new", {"macroName": "Copy"}), "")
+        self.assertEqual(s.get(5)["name"], "Copy")
+        step = {"macroId": 5, "macroType": 3, "macroValue": 30, "macroDelay": 0, "macroText": "",
+                "mousePositionX": 0, "mousePositionY": 0, "mousePositionAbsolute": False}
+        self.assertEqual(s.handle("POST", "/api/macro/newValue", step), "")
+        self.assertEqual(s.handle("POST", "/api/macro/newValue", dict(step, macroType=5, macroDelay=100)), "")
+        self.assertEqual(s.handle("POST", "/api/macro/newValue", dict(step, macroValue=31)), "")
+        self.assertEqual(s.handle("DELETE", "/api/macro/value", {"macroId": 5, "macroIndex": 1}), "")
+        # A new step after the gap gets number 3, it doesn't replace step 2 (upstream would)
+        self.assertEqual(s.handle("POST", "/api/macro/newValue", dict(step, macroValue=32)), "")
+        self.assertEqual({k: a["actionCommand"] for k, a in s.get(5)["actions"].items()}, {"0": 30, "2": 31, "3": 32})
+        self.assertEqual(s.handle("POST", "/api/macro/newValue", dict(step, macroType=2)), "Invalid macro type")
+        self.assertEqual(s.handle("POST", "/api/macro/newValue", dict(step, macroType=6)), "Invalid macro text")
+        hold = {"macroId": 5, "macroIndex": 0, "pressAndHold": True, "actionRepeatValue": 0, "actionRepeatDelay": 0,
+                "mousePositionX": 0, "mousePositionY": 0}
+        self.assertEqual(s.handle("POST", "/api/macro/updateValue", hold), "")
+        self.assertEqual(s.handle("POST", "/api/macro/updateValue", dict(hold, macroIndex=2)), "")
+        self.assertEqual(s.handle("POST", "/api/macro/updateValue", dict(hold, macroIndex=3)),
+                         "Not every step of a macro can be held")
+        self.assertEqual(s.handle("POST", "/api/macro/updateValue", dict(hold, actionRepeatValue=101)),
+                         "Invalid macro repeat value")
+        self.assertEqual(s.handle("POST", "/api/macro/updateSettings", {"macroId": 5, "macroRepeat": 3,
+                                                                       "macroRepeatDelay": 50}), "")
+        saved = json.loads((Path(self.tmp.name) / "own" / "copy.json").read_text())
+        self.assertEqual((saved["repeat"], saved["actions"]["0"]["actionHold"]), (3, True))
+        self.assertEqual(s.handle("DELETE", "/api/macro/profile", {"macroId": 5}), "")
+        self.assertFalse((Path(self.tmp.name) / "own" / "copy.json").exists())
+        self.assertEqual(s.handle("DELETE", "/api/macro/profile", {"macroId": 5}), "Invalid macro selected")
+        self.assertIsNone(s.handle("POST", "/api/macro/other", {"macroId": 4}))
+        self.assertTrue(s.all()["4"]["gapsAllowed"])
+
+
+class ServerMacroTest(unittest.TestCase):
+    def test_macros_through_the_server(self):
+        import threading
+        import urllib.request
+        from quartercore.core.server import Core, serve
+        with tempfile.TemporaryDirectory() as tmp:
+            store = macros.MacroStore(Path(tmp) / "own", Path(tmp) / "none")
+            core = Core("http://127.0.0.1:1", lambda: [], log=lambda text: None, macros=store)
+            server = serve(core, 0)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            url = "http://127.0.0.1:%d" % server.server_port
+
+            def call(method, path, body=None):
+                request = urllib.request.Request(url + path, method=method,
+                                                 data=json.dumps(body).encode() if body is not None else None)
+                with urllib.request.urlopen(request, timeout=5) as reply:
+                    return json.loads(reply.read())
+            try:
+                self.assertEqual(call("PUT", "/api/macro/new", {"macroName": "Hello"})["status"], 1)
+                self.assertEqual(call("GET", "/api/macro/")["data"]["1"]["name"], "Hello")
+                self.assertEqual(call("GET", "/api/macro/1")["data"]["id"], 1)
+                self.assertEqual(call("GET", "/api/macro/keyInfo/6")["data"], "Play")
+                answer = call("POST", "/api/macro/newValue", {"macroId": 1, "macroType": 2})
+                self.assertEqual((answer["status"], answer["message"]), (0, "Invalid macro type"))
+            finally:
+                server.shutdown()
+                server.server_close()
 
 
 if __name__ == "__main__":

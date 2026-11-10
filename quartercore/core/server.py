@@ -19,6 +19,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .. import __version__
+from . import inputs
 
 CHECK_INTERVAL = 10
 REFRESH_INTERVAL = 1
@@ -26,7 +27,7 @@ PROXY_TIMEOUT = 10
 
 
 class Core:
-    def __init__(self, openlinkhub, discover, standalone=False, log=print):
+    def __init__(self, openlinkhub, discover, standalone=False, log=print, macros=None):
         self.openlinkhub = openlinkhub.rstrip("/")
         self.discover = discover
         self.standalone = standalone
@@ -36,6 +37,7 @@ class Core:
         self.owned = set()       # serials quartercore-core drives now
         self.openlinkhub_up = False
         self.stopping = threading.Event()
+        self.macros = macros     # the macro store; without one, macro requests go on to OpenLinkHub
 
     # --- OpenLinkHub ---
 
@@ -191,6 +193,18 @@ def make_handler(core):
                         listed[serial] = core.drivers[serial].summary()
                 self.reply({"code": 200, "status": 0, "devices": listed})
                 return
+            if core.macros is not None and path.startswith("/api/macro/"):
+                rest = path[len("/api/macro/"):]
+                if rest == "":
+                    self.reply({"code": 200, "status": 1, "data": core.macros.all()})
+                    return
+                if rest.isdigit():
+                    self.reply({"code": 200, "status": 1, "data": core.macros.get(int(rest))})
+                    return
+                if rest.startswith("keyInfo/") and rest[8:].isdigit():
+                    entry = inputs.ACTIONS.get(int(rest[8:]))
+                    self.reply({"code": 200, "status": 1, "data": entry[0] if entry else ""})
+                    return
             if path == "/api/systray":
                 self.systray()
                 return
@@ -210,6 +224,11 @@ def make_handler(core):
 
         def change(self, method):
             raw, body = self.body()
+            if core.macros is not None and self.path.startswith("/api/macro/") and isinstance(body, dict):
+                error = core.macros.handle(method, self.path, body)
+                if error is not None:
+                    self.reply({"code": 200, "status": 0 if error else 1, "message": error or "Done"})
+                    return
             driver = core.driver(str(body.get("deviceId") or "")) if isinstance(body, dict) else None
             if driver is not None:
                 error = driver.handle(self.path, body, method)

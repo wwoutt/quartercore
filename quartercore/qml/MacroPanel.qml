@@ -340,8 +340,9 @@ RowLayout {
         }
 
         // OpenLinkHub numbers a new step with the number of steps, so after a gap it replaces the last step
+        // (quartercore-core gives a new step the next free number: gapsAllowed)
         Label {
-            visible: !!panel.macro && panel.macro.steps.some((s, i) => s.index !== i)
+            visible: !!panel.macro && !panel.macro.gapsAllowed && panel.macro.steps.some((s, i) => s.index !== i)
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
             color: "#f67400"

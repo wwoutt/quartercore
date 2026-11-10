@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.15 has:
+- Version 0.16 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -147,9 +147,12 @@ it drives:
   OpenRGB and the RGB cluster. Layouts are read from OpenLinkHub's
   `database/keyboard`. On the first start it takes over OpenLinkHub's profile.
 - **A virtual keyboard and mouse** (`/dev/uinput`) for button actions and macros,
-  made the first time a button needs them. Macros are still made in OpenLinkHub
-  and read from its `database/macros/`; moving the mouse to an absolute position
-  isn't ported yet.
+  made the first time a button needs them. Moving the mouse to an absolute
+  position isn't ported yet.
+- **Macros**: made, changed and played by quartercore-core, stored in
+  `~/.config/Quartercore/core/macros/` (OpenLinkHub's macros are copied the first
+  time). A new step gets the next free number, so it never replaces a step after
+  a deleted one, as it can in OpenLinkHub.
 
 It only takes over a device when OpenLinkHub runs and leaves that device alone,
 so the two never drive the same device. `./install.sh` installs it, but it
