@@ -4,8 +4,10 @@
 #
 # Run: python3 -m unittest discover -s tests
 
+import json
 import os
 import sys
+import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -14,10 +16,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QCoreApplication  # noqa: E402
+from PySide6.QtCore import QCoreApplication, QObject, Signal  # noqa: E402
 
 import fake_openlinkhub  # noqa: E402
-from quartercore import edge as e  # noqa: E402
+from quartercore import edge as e, edgelayout  # noqa: E402
+from quartercore.edgeeditor import EdgeEditor  # noqa: E402
 from quartercore.backend import Backend  # noqa: E402
 from test_backend import wait  # noqa: E402
 
@@ -132,77 +135,278 @@ class WidgetDataTest(unittest.TestCase):
         self.assertTrue(e.calendar_days(2027, 1, False, datetime(2026, 11, 10))[0]["muted"])
 
 
+class FakeSensors:
+    """Stands in for quartercore.sensors, so the tests don't depend on this computer."""
+
+    class CpuLoad:
+        def read(self):
+            return 12.0
+
+    class GpuReader(QObject):
+        updated = Signal()
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.temperature = self.load = None
+
+        def refresh(self):
+            self.temperature, self.load = 78.0, 12.0
+            self.updated.emit()
+
+    @staticmethod
+    def cpu_temperature():
+        return 41.0
+
+    @staticmethod
+    def memory_usage():
+        return {"Total": 34359738368, "Used": 8589934592, "Available": 25769803776, "UsedPercent": 25,
+                "SwapTotal": 0, "SwapUsed": 0, "SwapPercent": 0}
+
+    @staticmethod
+    def storage_usage():
+        return [{"MountPoint": "/", "Device": "/dev/nvme0n1p3", "Filesystem": "btrfs", "Total": 100,
+                 "Used": 25, "Available": 75, "UsedPercent": 25.0, "AvailableData": True}]
+
+    @staticmethod
+    def storage_temperatures():
+        return [{"Key": "hwmon1", "Model": "Test SSD", "Temperature": 30}]
+
+
+class FakeMedia(QObject):
+    updated = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.playing = None
+        self.actions = []
+
+    def refresh(self):
+        self.playing = {"playing": True, "title": "Song", "artists": ["Artist"], "position": 65, "length": 200}
+        self.updated.emit()
+
+    def control(self, action):
+        self.actions.append(action)
+
+
 class EdgeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QCoreApplication.instance() or QCoreApplication([])
 
-    def start(self, variant=1):
+    def start(self, variant=1, olh_layout=True):
         os.environ["FAKE_EDGE"] = str(variant)
         self.server, self.url, self.state = fake_openlinkhub.start()
+        if not olh_layout:
+            self.state.edge = None
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmp.name) / "xeneon-edge.json"
         self.backend = Backend(self.url)
-        self.edge = e.Edge(self.backend)
+        self.media = FakeMedia()
+        self.edge = e.Edge(self.backend, sensors=FakeSensors, media=self.media)
         self.edge.weather_url = self.url + "/weather"
         self.messages = []
         self.backend.notify.connect(lambda text, ok: self.messages.append((text, ok)))
+        self.editor = EdgeEditor(self.backend, self.edge, path=self.path)
 
     def tearDown(self):
         self.edge.setActive(False)
         self.server.shutdown()
+        self.tmp.cleanup()
         os.environ.pop("FAKE_EDGE", None)
 
     def data(self, widget_id):
         return self.edge.data.get("widget:%d" % widget_id, {})
 
-    def test_widgets_and_data(self):
+    def test_first_start_takes_over_openlinkhub(self):
         self.start(1)
-        self.edge.setActive(True)
-        self.assertTrue(wait(lambda: len(self.edge.items) == 11))
-        self.assertEqual(self.edge.status, "")
+        self.assertTrue(wait(lambda: self.path.exists()))
+        self.assertEqual(len(self.edge.items), 11)
         settings = {i["widgetId"]: i["settings"] for i in self.edge.items}
         self.assertEqual(settings[10]["headerText"], "Pump")            # from the device profile
         self.assertEqual(settings[6]["max"], 95)                        # upstream default
+        self.assertEqual(json.loads(self.path.read_text())["version"], 1)
+
+    def test_first_start_without_openlinkhub_layout(self):
+        self.start(1, olh_layout=False)
+        self.assertTrue(wait(lambda: "/api/xeneonLayout" in self.state.gets))
+        self.assertEqual(sorted(i["widgetId"] for i in self.edge.items), [1, 2, 3, 4, 5, 6, 7, 8, 9])
+        self.assertFalse(self.path.exists())                            # nothing saved until the user does
+
+    def test_saved_layout_wins(self):
+        self.tmp_layout = edgelayout.default_layout()
+        self.tmp_layout["items"] = self.tmp_layout["items"][:2]
+        self.start(1)
+        edgelayout.save(self.tmp_layout, self.path)
+        editor = EdgeEditor(self.backend, self.edge, path=self.path)
+        self.assertEqual([i["widgetId"] for i in self.edge.items], [1, 2])
+        self.assertFalse(editor.dirty)
+
+    def test_widgets_and_data(self):
+        self.start(1)
+        self.assertTrue(wait(lambda: len(self.edge.items) == 11))
+        self.edge.setActive(True)
         self.assertTrue(wait(lambda: self.data(6).get("value") == 41 and self.data(9).get("value") == 12
+                             and self.data(8).get("value") == 78
                              and self.data(10).get("value") == 26.5 and self.data(11).get("value") == 700))
         self.assertTrue(wait(lambda: self.data(3).get("title") == "Song" and len(self.data(4).get("rows", [])) == 2))
         self.assertTrue(wait(lambda: self.data(2).get("location") == "Amsterdam, Netherlands", 5000))
         self.assertEqual(self.data(2)["condition"], "Overcast")
-        # Only the data these widgets need is asked for
+        # CPU and GPU are read by Quartercore itself now
+        self.assertNotIn("/api/cpuTemp/clean", self.state.gets)
         self.assertNotIn("/api/stats/memory", self.state.gets)
-        self.assertIn("/api/cpuTemp/clean", self.state.gets)
 
     def test_second_set(self):
         self.start(2)
+        self.assertTrue(wait(lambda: {i["key"] for i in self.edge.items} >= {"widget:12", "widget:16"}))
+        self.assertNotIn("widget:9", {i["key"] for i in self.edge.items})      # hidden in the fork's layout
+        self.assertNotIn("custom:crypto-ticker", {i["key"] for i in self.edge.items})
         self.edge.setActive(True)
-        self.assertTrue(wait(lambda: {i["key"] for i in self.edge.items} >= {"widget:12", "custom:crypto-ticker"}))
-        self.assertNotIn("widget:9", {i["key"] for i in self.edge.items})
         self.assertTrue(wait(lambda: self.data(15).get("available") and self.data(16).get("rows")
                              and self.data(13).get("rows") and self.data(14).get("profiles")))
+        self.assertEqual(self.data(16)["temperatures"], [{"name": "Test SSD / hwmon1", "value": "30.0 °C"}])
         self.assertEqual([p["name"] for p in self.data(14)["profiles"]], ["default", "work"])
         self.assertTrue(wait(lambda: self.data(12).get("value") == "41.0", 4000))
         self.edge.changeProfile("KB1", "work")
         self.assertTrue(wait(lambda: [p["active"] for p in self.data(14)["profiles"]] == [False, True], 5000))
 
-    def test_without_xeneon(self):
-        self.start(1)
-        self.state.edge = None
-        self.edge.setActive(True)
-        self.assertTrue(wait(lambda: self.edge.status != ""))
-        self.assertEqual(sorted(i["widgetId"] for i in self.edge.items), [1, 2, 3, 4, 5, 6, 7, 8, 9])
-
     def test_media_buttons(self):
         self.start(1)
         self.edge.media("next")
-        self.edge.media("../devices")                                   # only known actions
-        self.assertTrue(wait(lambda: "/api/media/next" in self.state.gets))
-        self.assertFalse(any("devices" in p for p in self.state.gets))
+        self.edge.media("../devices")
+        self.assertEqual(self.media.actions, ["next"])
 
     def test_inactive_polls_nothing(self):
         self.start(1)
         self.edge.setActive(True)
-        self.assertTrue(wait(lambda: self.edge.items))
+        self.edge.setPreview(True)
         self.edge.setActive(False)
-        self.assertFalse(self.edge.tick_timer.isActive() or self.edge.layout_timer.isActive())
+        self.assertTrue(self.edge.tick_timer.isActive())                # the editor preview still runs
+        self.edge.setPreview(False)
+        self.assertFalse(self.edge.tick_timer.isActive())
+
+
+class EditorTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QCoreApplication.instance() or QCoreApplication([])
+
+    def setUp(self):
+        self.server, self.url, self.state = fake_openlinkhub.start()
+        self.state.edge = None
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmp.name) / "xeneon-edge.json"
+        self.backend = Backend(self.url)
+        self.edge = e.Edge(self.backend, sensors=FakeSensors, media=FakeMedia())
+        self.messages = []
+        self.backend.notify.connect(lambda text, ok: self.messages.append((text, ok)))
+        self.editor = EdgeEditor(self.backend, self.edge, path=self.path)
+        self.editor.geocoding_url = self.url + "/geocoding"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.tmp.cleanup()
+
+    def item(self, key):
+        return next(i for i in self.editor.items if i["key"] == key)
+
+    def test_move_resize_and_overlap(self):
+        # The clock (0,0 8x4) can't go onto the weather (0,4)
+        self.assertFalse(self.editor.place("widget:1", 0, 2, 8, 4))
+        self.assertTrue(self.editor.place("widget:1", 0, 0, 6, 3))
+        self.assertTrue(self.editor.place("widget:1", 2, 1, 6, 3))
+        self.assertFalse(self.editor.place("widget:1", 20, 0, 6, 3))   # outside the grid
+        self.assertEqual({k: self.item("widget:1")[k] for k in "xywh"}, {"x": 2, "y": 1, "w": 6, "h": 3})
+        self.assertTrue(self.editor.dirty)
+        # The kiosk only changes after saving
+        clock = next(i for i in self.edge.items if i["widgetId"] == 1)
+        self.assertEqual(clock["x"], 0)
+        self.editor.save()
+        clock = next(i for i in self.edge.items if i["widgetId"] == 1)
+        self.assertEqual((clock["x"], clock["w"]), (2, 6))
+        self.assertFalse(self.editor.dirty)
+        self.assertEqual(json.loads(self.path.read_text())["items"][0]["x"], 2)
+
+    def test_add_hide_remove(self):
+        self.assertEqual([w["id"] for w in self.editor.available][:3], [10, 11, 12])
+        # The default layout fills the grid: a new widget comes in hidden
+        self.editor.add(13)
+        self.assertTrue(self.item("widget:13")["hidden"])
+        self.assertFalse(self.messages[-1][1])
+        # Hiding the GPU load (12,4 4x8) makes room
+        self.editor.setHidden("widget:9", True)
+        self.editor.add(15)
+        self.assertEqual(self.editor.selected, "widget:15")
+        memory = self.item("widget:15")
+        self.assertEqual((memory["template"], memory["hidden"]), ("xeneon-memory", False))
+        others = [i for i in self.editor.items if i["key"] != "widget:15" and not i["hidden"]]
+        self.assertFalse(any(edgelayout.overlaps(memory, o) for o in others))
+        self.editor.setHidden("widget:15", True)
+        self.editor.save()
+        self.assertNotIn("widget:15", {i["key"] for i in self.edge.items})
+        self.editor.remove("widget:15")
+        self.assertIn(15, [w["id"] for w in self.editor.available])
+
+    def test_settings_are_checked(self):
+        self.editor.setSetting("widget:6", "max", 5000)                   # CPU temperature scale up to 1000
+        self.assertNotEqual(self.editor.problem, "")
+        self.editor.save()
+        self.assertFalse(self.path.exists())
+        self.assertFalse(self.messages[-1][1])
+        self.editor.setSetting("widget:6", "max", "110")
+        self.editor.setSetting("widget:6", "dataColor", "#ff0000")
+        self.assertEqual(self.editor.problem, "")
+        self.editor.save()
+        saved = json.loads(self.path.read_text())
+        cpu = next(i for i in saved["items"] if i["widgetId"] == 6)
+        self.assertEqual((cpu["settings"]["max"], cpu["settings"]["dataColor"]), (110, "#ff0000"))
+
+    def test_revert_and_defaults(self):
+        self.editor.remove("widget:1")
+        self.editor.revert()
+        self.assertFalse(self.editor.dirty)
+        self.editor.place("widget:1", 0, 0, 2, 2)
+        self.editor.resetDefaults()
+        self.assertEqual(self.item("widget:1")["w"], 8)
+
+    def test_choices(self):
+        self.editor.refreshChoices()
+        self.assertTrue(wait(lambda: len(self.editor.choices("device", "")) == 2))
+        channels = self.editor.choices("channel", "HUB1")
+        self.assertEqual([c["value"] for c in channels], [1, 2, 3])
+        self.assertTrue(wait(lambda: len(self.editor.choices("battery", "")) == 3))
+        names = [f["name"] for f in self.editor.fields("xeneon-weather")]
+        self.assertIn("latitude", names)
+
+    def test_city_search(self):
+        found = []
+        self.editor.citiesFound.connect(found.append)
+        self.editor.searchCity("Utrecht")
+        self.assertTrue(wait(lambda: found))
+        self.assertEqual(found[0][0]["name"], "Utrecht")
+        self.editor.setCity("widget:2", found[0][0])
+        self.assertEqual(self.item("widget:2")["settings"]["latitude"], 52.09)
+
+    def test_other_program_changed_the_file(self):
+        layout = edgelayout.default_layout()
+        layout["items"] = layout["items"][:1]
+        edgelayout.save(layout, self.path)
+        self.editor._watch()
+        self.assertEqual([i["widgetId"] for i in self.edge.items], [1])
+
+
+class EditorMouseTest(unittest.TestCase):
+    def test_drag_and_resize_in_the_preview(self):
+        """The QML side: the page scrolls, so the drag must not be taken over."""
+        import subprocess
+        script = Path(__file__).resolve().parent / "qml_drag_check.py"
+        out = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=60)
+        line = [l for l in out.stdout.splitlines() if l.startswith("{")]
+        self.assertTrue(line, out.stderr[-2000:])
+        result = json.loads(line[-1])
+        self.assertEqual(result["selected"], "widget:1")
+        self.assertEqual(result["resized"], {"x": 0, "y": 0, "w": 6, "h": 3})
+        self.assertEqual(result["moved"], {"x": 2, "y": 0, "w": 6, "h": 3})
+        self.assertTrue(result["dirty"])
 
 
 if __name__ == "__main__":

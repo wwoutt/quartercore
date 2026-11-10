@@ -4,10 +4,10 @@
 #
 # Native QML version of the OpenLinkHub kiosk page (web/xeneon.html and
 # static/js/xeneon.js by Nikola Jurkovic) with the free layout of the fork
-# wwoutt/OpenLinkHub (/api/xeneonLayout: a 24 x 12 grid on 2560 x 720).
-# Widget settings come from the XENEON EDGE device profile; when OpenLinkHub
-# doesn't see the XENEON EDGE, the upstream default widgets and settings are
-# used. Custom HTML widgets from the widget store are not shown (native only).
+# wwoutt/OpenLinkHub (a 24 x 12 grid on 2560 x 720). The layout and widget
+# settings are Quartercore's own (edgelayout.py, edgeeditor.py); the fork's
+# /api/xeneonLayout is only read to take them over once. Custom HTML widgets
+# from the widget store are not shown (native only).
 
 import copy
 import json
@@ -20,7 +20,6 @@ from PySide6.QtNetwork import QNetworkRequest
 
 COLUMNS, ROWS = 24, 12
 EDGE_WIDTH, EDGE_HEIGHT = 2560, 720
-LAYOUT_INTERVAL_MS = 10000
 TICK_MS = 1000
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -33,7 +32,7 @@ def N_(text):
 # Upstream database/xeneon/xeneon.json: the 16 widgets with their default settings
 WIDGET_DEFAULTS = {
     1: {"name": "Date / Time", "template": "xeneon-clock", "textColor": "#e6e6e6", "fontSize": 80,
-        "subTextColor": "#a1a1a1", "subFontSize": 50},
+        "subTextColor": "#a1a1a1", "subFontSize": 50, "left": 0, "top": 0, "subLeft": 0, "subTop": 0},
     2: {"name": "Weather", "template": "xeneon-weather", "city": "New York", "country": "United States",
         "latitude": 40.7128, "longitude": -74.006, "refreshInterval": 10, "unit": "°C"},
     3: {"name": "Media Player", "template": "xeneon-media-player", "dataColor": "#38bdf8"},
@@ -121,9 +120,14 @@ def find_edge_screen(screens):
     return None
 
 
+# OpenLinkHub checks these four for every widget, also where its defaults leave them out
+BASE_SETTINGS = {"textColor": "#e6e6e6", "subTextColor": "#a1a1a1", "fontSize": 36, "subFontSize": 15,
+                 "dataColor": "#38bdf8"}
+
+
 def widget_settings(widget_id, saved=None):
     """Upstream defaults for a widget, overlaid with the settings saved in the device profile."""
-    settings = copy.deepcopy(WIDGET_DEFAULTS.get(widget_id, {}))
+    settings = dict(copy.deepcopy(BASE_SETTINGS), **copy.deepcopy(WIDGET_DEFAULTS.get(widget_id, {})))
     for key, value in (saved or {}).items():
         if value not in (None, "") or key not in settings:
             settings[key] = value
@@ -411,30 +415,43 @@ def calendar_days(year, month, week_start_sunday, today):
 
 
 class Edge(QObject):
-    """Layout and live data for the XENEON EDGE window."""
+    """Live data for the XENEON EDGE widgets (kiosk window and editor preview).
+
+    The layout comes from EdgeEditor (quartercore/edgeeditor.py). CPU, GPU,
+    memory, storage and the media player are read by Quartercore itself
+    (sensors.py, media.py); device sensors, batteries and device profiles
+    still come from OpenLinkHub until those devices move (roadmap part 2).
+    """
     itemsChanged = Signal()
     dataChanged = Signal()
     statusChanged = Signal()
     clockChanged = Signal()
+    screenChanged = Signal()
 
-    def __init__(self, backend, parent=None):
+    def __init__(self, backend, parent=None, sensors=None, media=None):
         super().__init__(parent or backend)
+        from . import media as media_module, sensors as sensors_module
         self.backend = backend
         self._items = []
+        self._preview = []
         self._data = {}
         self._raw = {}
         self._status = ""
-        self._serial = ""
-        self._revision = None
         self._history = {}
         self._weather_at = 0
+        self._weather_key = None
         self._ticks = 0
-        self._active = False
+        self._kiosk = self._previewing = False
         self._profiles = {}
         self._screen_name = ""
+        self.sensors = sensors or sensors_module
+        self.cpu_load = self.sensors.CpuLoad()
+        self.gpu = self.sensors.GpuReader(self)
+        self.gpu.updated.connect(self._gpu_done)
+        self.media_player = media or media_module.Media(self)
+        self.media_player.updated.connect(self._media_done)
         # Tests and screenshots with the fake point this at the fake OpenLinkHub
         self.weather_url = os.environ.get("QUARTERCORE_WEATHER_URL") or WEATHER_URL
-        self.layout_timer = QTimer(self, interval=LAYOUT_INTERVAL_MS, timeout=self.refreshLayout)
         self.tick_timer = QTimer(self, interval=TICK_MS, timeout=self._tick)
 
     @property
@@ -454,8 +471,6 @@ class Edge(QObject):
     @Property(str, notify=statusChanged)
     def status(self):
         return self._status
-
-    screenChanged = Signal()
 
     @Property(str, notify=screenChanged)
     def screenName(self):
@@ -481,82 +496,96 @@ class Edge(QObject):
 
     # --- running ---
 
-    @Slot(bool)
-    def setActive(self, active):
-        """Polls only while the XENEON EDGE window is shown."""
-        if active == self._active:
-            return
-        self._active = active
-        if active:
-            self.refreshLayout()
-            self.layout_timer.start()
-            self.tick_timer.start()
+    def _update_running(self):
+        if self._kiosk or self._previewing:
+            if not self.tick_timer.isActive():
+                self.tick_timer.start()
+                self._tick()
         else:
-            self.layout_timer.stop()
             self.tick_timer.stop()
 
-    @Slot()
-    def refreshLayout(self):
-        def done(ok, data, error):
-            payload = (data or {}).get("data") if ok else None
-            if not payload:
-                # OpenLinkHub doesn't see the XENEON EDGE: upstream defaults
-                self._set_status(N_("OpenLinkHub doesn't see the XENEON EDGE: showing the default widgets."))
-                self._apply("", default_areas(), None, None, "defaults")
-                return
-            self._set_status("")
-            serial = payload.get("serial") or ""
-            revision = payload.get("revision")
-            if revision == self._revision and serial == self._serial:
-                return
-            areas, layout = payload.get("areas") or [], payload.get("layout")
-            self.api.get("/api/devices/" + serial, lambda ok2, d2, e2: self._apply(
-                serial, areas, layout,
-                ((d2 or {}).get("device") or {}).get("DeviceProfile", {}).get("WidgetAreas") if ok2 else None,
-                revision))
-        self.api.get("/api/xeneonLayout", done)
+    @Slot(bool)
+    def setActive(self, active):
+        """Polls only while the XENEON EDGE window (or the editor preview) is shown."""
+        self._kiosk = bool(active)
+        self._update_running()
 
-    def _apply(self, serial, areas, layout, profile_areas, revision):
-        if revision == self._revision and serial == self._serial:
-            return
-        self._serial, self._revision = serial, revision
-        self._items = build_items(areas, layout, profile_areas)
+    @Slot(bool)
+    def setPreview(self, active):
+        self._previewing = bool(active)
+        self._update_running()
+
+    def set_items(self, items):
+        """The widgets the kiosk shows (from the saved layout)."""
+        self._items = items
         self.itemsChanged.emit()
-        self._ticks = 0
         self._weather_at = 0
-        self._tick()
+        self._rebuild()
+        if self.tick_timer.isActive():
+            self._tick()
 
-    def _set_status(self, text):
-        text = self.tr(text) if text else ""
-        if text != self._status:
-            self._status = text
-            self.statusChanged.emit()
+    def set_preview_items(self, items):
+        """Widgets of the editor that aren't saved yet, so the preview has data too."""
+        self._preview = items
+        self._rebuild()
+
+    def _all(self):
+        seen, items = set(), []
+        for item in self._items + self._preview:
+            if item["key"] not in seen:
+                seen.add(item["key"])
+                items.append(item)
+        return items
 
     def _templates(self):
-        return {i["template"] for i in self._items}
+        return {i["template"] for i in self._all()}
 
     def _tick(self):
         self.clockChanged.emit()
-        templates = self._templates()
-        needed = {source for t in templates for source in NEEDS.get(t, [])}
-        for item in self._items:
+        needed = {source for t in self._templates() for source in NEEDS.get(t, [])}
+        for item in self._all():
             if item["template"] == "xeneon-temperature-history":
                 s = item["settings"].get("source")
                 needed.add("cpuTemp" if s == "cpu" else "gpuTemp" if s == "gpu" else "devices")
         for name in needed:
             path, every = SOURCES[name]
-            if self._ticks % every == 0:
+            if self._ticks % every:
+                continue
+            if name in ("cpuTemp",):
+                self._raw["cpuTemp"] = self.sensors.cpu_temperature()
+            elif name == "cpuLoad":
+                self._raw["cpuLoad"] = self.cpu_load.read()
+            elif name in ("gpuTemp", "gpuLoad"):
+                self.gpu.refresh()
+            elif name == "memory":
+                self._raw["memory"] = self.sensors.memory_usage()
+            elif name == "storage":
+                self._raw["storage"] = self.sensors.storage_usage()
+            elif name == "storageTemp":
+                self._raw["storageTemp"] = self.sensors.storage_temperatures()
+            elif name == "media":
+                self.media_player.refresh()
+            else:
+                # Device sensors and batteries: still from OpenLinkHub
                 self.api.get(path, self._store(name))
         if self._ticks % 2 == 0:
             self._sample_history()
         if self._ticks % 3 == 0:
             self._refresh_profiles()
         self._refresh_weather()
+        self._rebuild()
         self._ticks += 1
+
+    def _gpu_done(self):
+        self._raw["gpuTemp"], self._raw["gpuLoad"] = self.gpu.temperature, self.gpu.load
+        self._rebuild()
+
+    def _media_done(self):
+        self._raw["media"] = self.media_player.playing
+        self._rebuild()
 
     def _store(self, name):
         def done(ok, data, error):
-            # Reads answer status 1 here; status 0 (media monitor off) means no data
             value = data.get("data") if ok and data.get("status") == 1 else None
             self._raw[name] = value
             self._rebuild()
@@ -565,7 +594,7 @@ class Edge(QObject):
     def _rebuild(self):
         """Turns the raw API data into what each widget shows."""
         raw, out = self._raw, {}
-        for item in self._items:
+        for item in self._all():
             s, t, key = item["settings"], item["template"], item["key"]
             if t in ("xeneon-cpu-temp", "xeneon-gpu-temp"):
                 v = number(raw.get("cpuTemp" if t == "xeneon-cpu-temp" else "gpuTemp"))
@@ -598,7 +627,7 @@ class Edge(QObject):
 
     def _sample_history(self):
         now = time.time()
-        for item in self._items:
+        for item in self._all():
             if item["template"] != "xeneon-temperature-history":
                 continue
             s = item["settings"]
@@ -632,7 +661,7 @@ class Edge(QObject):
     # --- profile shortcuts ---
 
     def _refresh_profiles(self):
-        for item in self._items:
+        for item in self._all():
             serial = item["settings"].get("deviceId") if item["template"] == "xeneon-profile-shortcuts" else ""
             if serial:
                 self.api.get("/api/devices/" + serial, self._store_profiles(serial))
@@ -658,12 +687,12 @@ class Edge(QObject):
     @Slot(str)
     def media(self, action):
         if action in MEDIA_ACTIONS:
-            self.api.get("/api/media/" + action, lambda ok, data, error: None)
+            self.media_player.control(action)
 
     # --- weather ---
 
     def _refresh_weather(self):
-        for item in self._items:
+        for item in self._all():
             if item["template"] != "xeneon-weather":
                 continue
             s = item["settings"]

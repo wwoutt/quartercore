@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.9 has:
+- Version 0.10 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -67,11 +67,20 @@ not audited by an independent developer.
     weather (Open-Meteo, for the city set in OpenLinkHub), media player with
     buttons, battery status, calendar, CPU/GPU temperature and load, device
     temperature and RPM, temperature history, cooling overview, profile shortcuts,
-    memory and storage. It uses the layout and widget settings of the fork's
-    XENEON EDGE layout editor (`/api/xeneonLayout`); without them it shows the
-    upstream default widgets. Custom HTML widgets from the widget store are not
-    shown, and the weather doesn't use the device location. Turn it on in the
-    settings or the tray menu, after turning off the fork's web kiosk.
+    memory and storage. CPU and GPU temperature and load, memory, storage and
+    the media player (MPRIS) are read by Quartercore itself; device sensors,
+    batteries and device profiles still come from OpenLinkHub. Custom HTML
+    widgets from the widget store are not shown, and the weather doesn't use the
+    device location. Turn it on in the settings or the tray menu, after turning
+    off the fork's web kiosk.
+  - **XENEON EDGE layout editor** (native): the kiosk as a live preview; drag
+    widgets to move them and the corner to resize them on the 24 × 12 grid,
+    show, hide, add and remove widgets, and change their settings (colours,
+    texts, sizes, scale, unit, device and sensor, city with search, ...).
+    Quartercore keeps the layout in `~/.config/Quartercore/xeneon-edge.json`;
+    the first time it takes over the layout of the fork's web editor and the
+    widget settings of OpenLinkHub, when there are any. All 16 widgets can be
+    shown at once.
   - **Tray icon**: CPU and GPU temperature in the tooltip and menu, a speed profile
     for all fans and pump of a hub in two clicks, quick links to the XENEON EDGE
     layout and the web interface. Closing the window keeps Quartercore in the tray.

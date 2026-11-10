@@ -16,7 +16,7 @@ ApplicationWindow {
     visible: false
     title: "Quartercore"
 
-    // "" for the overview and device pages, or "profiles", "lighting" or "settings"
+    // "" for the overview and device pages, or "profiles", "lighting", "edge" or "settings"
     property string section: ""
 
     function open(serial) {
@@ -103,7 +103,8 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     text: qsTr("XENEON EDGE layout")
                     icon.name: "video-display"
-                    onClicked: backend.openXeneonEditor()
+                    highlighted: window.section === "edge"
+                    onClicked: window.section = "edge"
                 }
 
                 ItemDelegate {
@@ -138,6 +139,7 @@ ApplicationWindow {
             Loader {
                 anchors.fill: parent
                 source: window.section === "settings" ? "SettingsPage.qml"
+                      : window.section === "edge" ? "EdgeEditorPage.qml"
                       : !backend.connected ? "Disconnected.qml"
                       : window.section === "profiles" ? "ProfilesPage.qml"
                       : window.section === "lighting" ? "LightingPage.qml"

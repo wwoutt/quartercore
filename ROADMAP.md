@@ -14,7 +14,7 @@ OpenLinkHub is no longer needed. Estimates are rough.
 | 5 | HX1500i and other power supplies | **done** (0.5) for HID power supplies; dongle power supplies still to do |
 | 6 | K100 and other keyboards: lighting, profiles, key assignments, macros | **done** for the K100: part 1 (0.6) key colours, colour profiles, settings; part 2 (0.7) key assignments, macros with recording, performance, dial colours. Other keyboards (FlashTap, actuation, keyboards with modifier keys) still to test |
 | 7 | HS80 MAX and other headsets: lighting, equalizer, sidetone, sleep | **done** (0.8) for the HS80 MAX WIRELESS: profiles, effect, brightness, zone colours, equalizer, sidetone, mic LED, sleep, buttons. Other headsets (Virtuoso with noise cancelling, HS80 RGB, VOID) still to do |
-| 8 | XENEON EDGE: native kiosk on the XENEON EDGE, widgets, layout editor, store | **part 1 done** (0.9): native fullscreen kiosk with all 16 upstream widgets, the fork's layout and widget settings. Still to do, now in step A: native layout editor (drag, resize, hide, widget settings), a native widget format for the store (decided: no HTML widgets); touch testing on the real screen |
+| 8 | XENEON EDGE: native kiosk on the XENEON EDGE, widgets, layout editor, store | **part 1 done** (0.9): native fullscreen kiosk with all 16 upstream widgets, the fork's layout and widget settings. The native layout editor came with step A (0.10). Still to do: a native widget format for the store (decided: no HTML widgets); touch testing on the real screen |
 | 9 | Other device types (mice, controllers, LCDs, Commander hubs, memory) | later |
 | 10 | Packaging (Flatpak), translations | later; Flatpak moves to step G |
 
@@ -59,7 +59,7 @@ Quartercore, **one device at a time**, while OpenLinkHub keeps the others.
 ### Steps, from low to high risk
 | # | Step | What moves | Upstream code to port (lines) | Risk |
 |---|---|---|---|---|
-| A | XENEON EDGE kiosk on its own | layout and widget settings stored by Quartercore, with a native layout editor (was step 8 part 2); CPU/GPU temperature and load, memory, storage read directly (hwmon, `/proc`, NVIDIA/AMD tools); media player through MPRIS (D-Bus) | `systeminfo` (665), `stats` (144), parts of `xeneonedge` | low, read only |
+| A | XENEON EDGE kiosk on its own | **done** (0.10): own layout file with a native layout editor (drag, resize, show/hide, add/remove, widget settings, city search), taken over once from the fork; CPU/GPU, memory, storage and drive temperatures read directly; media player through MPRIS and wpctl. Still from OpenLinkHub until steps D-F: device sensors, batteries, device profiles. Not yet: editing on the touchscreen itself, weather by device location | `systeminfo` (665), `stats` (144), parts of `xeneonedge` | low, read only |
 | B | `quartercore-core` and the HX1500i | the service itself (API, proxy to OpenLinkHub, udev rules, autostart); power supply readings and fan mode | `psuhid` (820) | low |
 | C | XENEON EDGE device | brightness, backlight, contrast, colour tones | `xeneonedge` (1063) | low |
 | D | HS80 MAX WIRELESS | headset and dongle: battery, equalizer, sidetone, mic LED, sleep, zone colours, button; the RGB effect engine | `hs80maxW` (1957), `hs80maxdongle` (567), `rgb` | medium |

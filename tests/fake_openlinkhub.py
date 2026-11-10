@@ -353,6 +353,9 @@ class Handler(BaseHTTPRequestHandler):
                         "Used": 250051221504, "Available": 750153664512, "UsedPercent": 25.0, "AvailableData": True},
                        {"MountPoint": "/mnt/games", "Device": "/dev/sdb1", "Filesystem": "ext4", "Total": 0,
                         "Used": 0, "Available": 0, "UsedPercent": 0, "AvailableData": False}])
+        elif path.startswith("/geocoding"):
+            self.reply({"results": [{"name": "Utrecht", "country": "Nederland", "admin1": "Utrecht",
+                                     "latitude": 52.09, "longitude": 5.12}]})
         elif path.startswith("/weather"):
             self.reply({"current": {"temperature_2m": 12.4, "apparent_temperature": 10.1, "relative_humidity_2m": 81,
                                     "weather_code": 3, "wind_speed_10m": 14.2, "is_day": 1,

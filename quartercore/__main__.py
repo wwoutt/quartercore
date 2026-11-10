@@ -21,6 +21,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from . import __version__, i18n
 from .backend import Backend
 from .edge import Edge, find_edge_screen
+from .edgeeditor import EdgeEditor
 from .headset import Headset
 from .keyboard import Keyboard
 from .lighting import Lighting
@@ -89,6 +90,8 @@ def main():
     context.setContextProperty("headset", headset)
     edge = Edge(backend)
     context.setContextProperty("edge", edge)
+    edge_editor = EdgeEditor(backend, edge)
+    context.setContextProperty("edgeEditor", edge_editor)
     context.setContextProperty("appVersion", __version__)
     context.setContextProperty("languages", [{"code": "system", "name": ""}]
                                + [{"code": k, "name": v} for k, v in i18n.LANGUAGES.items()])
@@ -118,7 +121,10 @@ def main():
     # Keep running in the tray when the window is closed (see onClosing in Main.qml)
     app.setQuitOnLastWindowClosed(not tray_available)
     if tray_available:
-        tray = Tray(backend, icon, show_window, app.quit, app, settings)
+        def open_edge_editor():
+            window.setProperty("section", "edge")
+            show_window()
+        tray = Tray(backend, icon, show_window, app.quit, app, settings, open_edge_editor)
         tray.show()
 
     # A second start shows this window instead of opening another one
@@ -168,13 +174,16 @@ def main():
     if args.screenshot:
         # profiles:<name> opens that profile
         section, _, profile = args.page.partition(":")
-        if section in ("settings", "profiles", "lighting"):
+        if section in ("settings", "profiles", "lighting", "edge"):
             QTimer.singleShot(1500, lambda: window.setProperty("section", section))
             if profile and section == "profiles":
                 QTimer.singleShot(3000, lambda: profiles.select(profile))
             elif profile and section == "lighting":
                 QTimer.singleShot(3000, lambda: lighting.selectEffect(profile))
-        elif args.page == "edge":
+            elif profile and section == "edge":
+                # edge:<widget id> selects that widget in the editor
+                QTimer.singleShot(3000, lambda: edge_editor.select("widget:" + profile))
+        elif args.page == "kiosk":
             # Renders the kiosk at 2560 x 720, also without a XENEON EDGE screen
             component = QQmlComponent(engine, QUrl.fromLocalFile(str(HERE / "qml" / "EdgeWindow.qml")))
             edge_window.append(component.create(context))
