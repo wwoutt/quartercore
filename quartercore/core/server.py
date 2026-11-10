@@ -177,12 +177,11 @@ def make_handler(core):
             raw, body = self.body()
             driver = core.driver(str(body.get("deviceId") or ""))
             if driver is not None:
-                if self.path == "/api/psu/speed":
-                    error = driver.set_fan_mode(int(body.get("fanMode", -1)))
-                    self.reply({"code": 200, "status": 0 if error else 1,
-                                "message": error or "Fan mode is changed"})
-                else:
+                error = driver.handle(self.path, body)
+                if error is None:
                     self.reply({"code": 200, "status": 0, "message": "Not supported by quartercore-core yet"})
+                else:
+                    self.reply({"code": 200, "status": 0 if error else 1, "message": error or "Done"})
                 return
             self.proxy("POST", raw)
 

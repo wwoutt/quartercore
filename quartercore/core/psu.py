@@ -221,6 +221,15 @@ class PowerSupply:
 
     # --- API ---
 
+    def handle(self, path, body):
+        """POST requests of the web page; None when this isn't one of them."""
+        if path == "/api/psu/speed":
+            try:
+                return self.set_fan_mode(int(body.get("fanMode", -1)))
+            except (TypeError, ValueError):
+                return "Invalid fan mode"
+        return None
+
     def summary(self):
         return {"Product": self.product, "Serial": self.serial, "Template": "psuhid.html"}
 

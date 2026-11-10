@@ -394,6 +394,40 @@ class EditorTest(unittest.TestCase):
         self.assertEqual([i["widgetId"] for i in self.edge.items], [1])
 
 
+class XeneonPageTest(unittest.TestCase):
+    """The native XENEON EDGE screen page sends the requests of the web page."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QCoreApplication.instance() or QCoreApplication([])
+
+    def setUp(self):
+        self.server, self.url, self.state = fake_openlinkhub.start()
+        self.backend = Backend(self.url)
+        self.backend.selectDevice("EDGE1")
+        self.assertTrue(wait(lambda: self.backend.active.get("page") == "xeneon"))
+
+    def tearDown(self):
+        self.server.shutdown()
+
+    def test_requests(self):
+        b = self.backend
+        b.setXeneonValue("brightness", 70)
+        b.setXeneonValue("contrast", 40)
+        b.setXeneonValue("backlight", 90)
+        b.setXeneonTone(1, 200)
+        b.setXeneonValue("brightness", 101)                  # not sent
+        b.setXeneonValue("volume", 1)                        # not sent
+        self.assertTrue(wait(lambda: len(self.state.requests) == 4))
+        sent = {path: body for _, path, body in self.state.requests}
+        self.assertEqual(sent["/api/brightness/gradual"], {"deviceId": "EDGE1", "brightness": 70})
+        self.assertEqual(sent["/api/colortone"], {"deviceId": "EDGE1", "colorTone": 200, "colorToneType": 1})
+        self.assertTrue(wait(lambda: (b.active.get("brightness"), b.active.get("backlight"),
+                                      b.active.get("tones")) == (70, 90, [150, 200, 140])))
+        b.resetXeneon()
+        self.assertTrue(wait(lambda: b.active.get("brightness") == 50 and b.active.get("tones")[1] == 126))
+
+
 class EditorMouseTest(unittest.TestCase):
     def test_drag_and_resize_in_the_preview(self):
         """The QML side: the page scrolls, so the drag must not be taken over."""

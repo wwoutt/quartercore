@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import fake_openlinkhub  # noqa: E402
-from quartercore.core import hid, psu  # noqa: E402
+from quartercore.core import hid, psu, xeneon  # noqa: E402
 from quartercore.core.server import Core, serve  # noqa: E402
 from quartercore.core.store import Store  # noqa: E402
 
@@ -185,6 +185,88 @@ class DriverTest(unittest.TestCase):
         self.assertEqual(driver.device.sent[-1][3], 60)
 
 
+class FakeScreen:
+    """The XENEON EDGE: every report gets a reply."""
+
+    def __init__(self, node):
+        self.written, self.reads, self.closed = [], 0, False
+
+    def write(self, data):
+        self.written.append(bytes(data))
+
+    def read(self, timeout):
+        self.reads += 1
+        return bytes(64)
+
+    def close(self):
+        self.closed = True
+
+
+class XeneonTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = Store(Path(self.tmp.name) / "store", Path(self.tmp.name) / "olh")
+        info = {"node": "/dev/hidraw6", "product": xeneon.PRODUCT, "interface": 0, "usbPath": "/devices/x/1-1.3"}
+        self.screen = xeneon.XeneonEdge(info, self.store, FakeScreen, serial="411226035656")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def sent(self):
+        return [(b[7], b[8], b[9]) for b in self.screen.device.written]
+
+    def test_packet(self):
+        p = xeneon.packet(xeneon.BRIGHTNESS, 70)
+        self.assertEqual((len(p), p[0], p[1], p[2], p[7], p[8], p[9]), (65, 0, 0x01, 0x0F, 0x02, 0x02, 70))
+        self.assertEqual(p[3:7], bytes(4))
+
+    def test_start_sends_the_saved_values(self):
+        self.screen.start()
+        self.assertEqual(self.sent(), [(2, 2, 50), (2, 1, 50), (2, 0, 100), (3, 1, 150), (3, 2, 126), (3, 3, 140)])
+        self.assertEqual(self.screen.device.reads, 6)      # one reply read per report
+
+    def test_settings(self):
+        self.assertEqual(self.screen.handle("/api/brightness/gradual", {"brightness": 80}), "")
+        self.assertEqual(self.screen.handle("/api/colortone", {"colorTone": 200, "colorToneType": 2}), "")
+        self.assertEqual(self.sent(), [(2, 2, 80), (3, 3, 200)])
+        saved = json.loads((Path(self.tmp.name) / "store" / "411226035656.json").read_text())
+        self.assertEqual((saved["Brightness"], saved["ColorToneBlue"]), (80, 200))
+        self.assertEqual(self.screen.handle("/api/contrast/gradual", {"contrast": 101}), "Invalid value")
+        self.assertEqual(self.screen.handle("/api/colortone", {"colorTone": 1, "colorToneType": 3}),
+                         "Invalid colour tone")
+        self.assertIsNone(self.screen.handle("/api/color", {}))
+        self.assertEqual(len(self.sent()), 2)
+
+    def test_reset_and_stop(self):
+        self.screen.handle("/api/backlight/gradual", {"backlight": 20})
+        self.screen.reset()
+        self.assertEqual(self.screen.settings, xeneon.DEFAULTS)
+        device = self.screen.device
+        self.screen.stop()
+        # What OpenLinkHub sends when it stops
+        self.assertEqual([(b[7], b[8], b[9]) for b in device.written[-6:]],
+                         [(2, 2, 50), (2, 1, 100), (2, 0, 50), (3, 1, 150), (3, 2, 126), (3, 3, 140)])
+        self.assertTrue(device.closed)
+
+    def test_settings_from_openlinkhub(self):
+        folder = Path(self.tmp.name) / "olh"
+        folder.mkdir()
+        (folder / "411226035656.json").write_text(json.dumps({"Brightness": 30, "Contrast": 60, "Backlight": 90,
+                                                              "ColorToneRed": 1, "WidgetAreas": {}}))
+        info = {"node": "/dev/hidraw6", "product": xeneon.PRODUCT, "interface": 0, "usbPath": "/devices/x"}
+        screen = xeneon.XeneonEdge(info, self.store, FakeScreen, serial="411226035656")
+        self.assertEqual((screen.settings["Brightness"], screen.settings["ColorToneRed"],
+                          screen.settings["ColorToneGreen"]), (30, 1, 126))
+
+    def test_the_page_shows_it(self):
+        from quartercore.backend import page_kind, xeneon_view
+        device = self.screen.device_json()
+        self.assertEqual(page_kind(device), "xeneon")
+        view = xeneon_view(device)
+        self.assertEqual((view["brightness"], view["backlight"], view["tones"], view["drivenBy"]),
+                         (50, 100, [150, 126, 140], "quartercore-core"))
+
+
 class FakeDriver:
     """A device for the server tests."""
 
@@ -208,6 +290,11 @@ class FakeDriver:
             return "Invalid fan mode"
         self.fan = mode
         return ""
+
+    def handle(self, path, body):
+        if path == "/api/psu/speed":
+            return self.set_fan_mode(int(body.get("fanMode", -1)))
+        return None
 
     def summary(self):
         return {"Product": self.product, "Serial": self.serial}
@@ -273,6 +360,7 @@ class CoreTest(unittest.TestCase):
         answer = self.post("/api/psu/speed", {"deviceId": "PSUX", "fanMode": 5})
         self.assertEqual((answer["status"], self.mine.fan), (1, 5))
         self.assertEqual(self.post("/api/psu/speed", {"deviceId": "PSUX", "fanMode": 50})["status"], 0)
+        self.assertIn("Not supported", self.post("/api/color", {"deviceId": "PSUX"})["message"])
         # Other devices go on to OpenLinkHub
         self.post("/api/speed", {"deviceId": "HUB1", "channelId": 1, "profile": "Quiet"})
         self.assertEqual(self.state.requests[-1][1:], ("/api/speed", {"deviceId": "HUB1", "channelId": 1,

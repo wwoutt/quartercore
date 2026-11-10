@@ -222,7 +222,10 @@ def initial_edge(variant=1):
     return {
         "variant": variant, "layout": EDGE_LAYOUT_2 if variant == 2 else None, "revision": "r1",
         "device": {"serial": "EDGE1", "product": "XENEON EDGE", "Template": "xeneonedge.html",
-                   "DeviceProfile": {"WidgetAreas": {str(a): {"widgetId": w, "widget": edge_widget(w)}
+                   "userProfiles": {"default": {"Active": True}},
+                   "DeviceProfile": {"Brightness": 50, "Contrast": 50, "Backlight": 100, "ColorToneRed": 150,
+                                     "ColorToneGreen": 126, "ColorToneBlue": 140,
+                                     "WidgetAreas": {str(a): {"widgetId": w, "widget": edge_widget(w)}
                                                      for a, w in areas}}},
     }
 
@@ -283,7 +286,8 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/devices/":
             self.reply({"code": 200, "status": 0, "devices": {
                 "HUB1": {"Product": "iCUE LINK System Hub"}, "KB1": {"Product": "K100"},
-                "PSU1": {"Product": "HX1500i"}, "HS1": {"Product": "HS80 MAX WIRELESS"}}})
+                "PSU1": {"Product": "HX1500i"}, "HS1": {"Product": "HS80 MAX WIRELESS"},
+                **({"EDGE1": {"Product": "XENEON EDGE"}} if s.edge is not None else {})}})
         elif self.path == "/api/devices/HUB1":
             self.reply({"code": 200, "status": 0, "device": HUB})
         elif self.path == "/api/devices/PSU1":
@@ -497,6 +501,32 @@ class Handler(BaseHTTPRequestHandler):
                 return
         self.refuse("Unable to apply key assignment")
 
+    def edge_change(self, body):
+        """XENEON EDGE screen settings, with the limits of xeneonedge.go."""
+        profile = self.state.edge["device"]["DeviceProfile"]
+        fields = {"/api/brightness/gradual": ("brightness", "Brightness", 100),
+                  "/api/contrast/gradual": ("contrast", "Contrast", 100),
+                  "/api/backlight/gradual": ("backlight", "Backlight", 100)}
+        if self.path in fields:
+            key, name, top = fields[self.path]
+            if not 0 <= body.get(key, -1) <= top:
+                self.refuse("Invalid value")
+                return
+            profile[name] = body[key]
+        elif self.path == "/api/colortone":
+            kind = body.get("colorToneType")
+            if kind not in (0, 1, 2) or not 0 <= body.get("colorTone", -1) <= 255:
+                self.refuse("Invalid colour tone")
+                return
+            profile[("ColorToneRed", "ColorToneGreen", "ColorToneBlue")[kind]] = body["colorTone"]
+        elif self.path == "/api/resetSettings":
+            profile.update(Brightness=50, Contrast=50, Backlight=100, ColorToneRed=150, ColorToneGreen=126,
+                           ColorToneBlue=140)
+        else:
+            self.refuse("unknown")
+            return
+        self.ok("Done")
+
     def headset_change(self, method, body):
         """Headset requests (deviceId HS1), with the checks of upstream requests.go and hs80maxW.go."""
         hs = self.state.headset
@@ -695,6 +725,9 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("POST", self.path, body))
+            if body.get("deviceId") == "EDGE1" and s.edge is not None:
+                self.edge_change(body)
+                return
             if body.get("deviceId") == "HS1":
                 self.headset_change("POST", body)
                 return

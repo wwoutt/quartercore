@@ -148,6 +148,7 @@ ApplicationWindow {
                       : backend.active.page === "psu" ? "PsuPage.qml"
                       : backend.active.page === "keyboard" ? "KeyboardPage.qml"
                       : backend.active.page === "headset" ? "HeadsetPage.qml"
+                      : backend.active.page === "xeneon" ? "XeneonPage.qml"
                       : backend.active.page === "web" ? "WebOnly.qml"
                       : "Loading.qml"
             }

@@ -384,5 +384,18 @@
   "Unit": "Eenheid",
   "Weather": "Weer",
   "Week starts on": "Week begint op",
-  "Widgets": "Widgets"
+  "Widgets": "Widgets",
+  "Backlight": "Achtergrondverlichting",
+  "Blue": "Blauw",
+  "Brightness and contrast go to 50 %, the backlight to 100 % and the colour tones to the factory values.": "Helderheid en contrast gaan naar 50 %, de achtergrondverlichting naar 100 % en de kleurtonen naar de fabriekswaarden.",
+  "Colour tone": "Kleurtoon",
+  "Contrast": "Contrast",
+  "Driven by OpenLinkHub": "Aangestuurd door OpenLinkHub",
+  "Driven by quartercore-core": "Aangestuurd door quartercore-core",
+  "Green": "Groen",
+  "Red": "Rood",
+  "Reset all settings": "Alles terugzetten",
+  "Reset the XENEON EDGE?": "De XENEON EDGE terugzetten?",
+  "Screen": "Scherm",
+  "The factory values are red 150, green 126 and blue 140.": "De fabriekswaarden zijn rood 150, groen 126 en blauw 140."
 }

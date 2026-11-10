@@ -16,7 +16,8 @@ SYSTEM_INTERVAL_MS = 2000
 DEVICE_LIST_INTERVAL_MS = 15000
 
 # Device pages built into this app, by the OpenLinkHub web template they replace
-NATIVE_TEMPLATES = dict({"lsh.html": "linkhub", "psuhid.html": "psu"}, **{t: "headset" for t in HEADSET_TEMPLATES})
+NATIVE_TEMPLATES = dict({"lsh.html": "linkhub", "psuhid.html": "psu", "xeneonedge.html": "xeneon"},
+                        **{t: "headset" for t in HEADSET_TEMPLATES})
 NO_LABEL = "Set Label"
 
 
@@ -90,6 +91,28 @@ def psu_view(device):
         elif ch.get("HasWatts"):
             view["outputPower"] = number(ch.get("watts"))
     return view
+
+
+def xeneon_view(device):
+    """XENEON EDGE screen settings (the OpenLinkHub page xeneonedge.html)."""
+    profile = device.get("DeviceProfile") or {}
+    user_profiles = device.get("userProfiles") or {}
+
+    def value(key, default):
+        try:
+            return int(profile.get(key, default))
+        except (TypeError, ValueError):
+            return default
+    return {
+        "serial": device.get("serial") or "",
+        "product": device.get("product") or "",
+        "drivenBy": device.get("DrivenBy") or "OpenLinkHub",
+        "brightness": value("Brightness", 50), "contrast": value("Contrast", 50),
+        "backlight": value("Backlight", 100),
+        "tones": [value("ColorToneRed", 150), value("ColorToneGreen", 126), value("ColorToneBlue", 140)],
+        "userProfile": next((k for k, v in user_profiles.items() if v.get("Active")), ""),
+        "userProfiles": sorted(user_profiles),
+    }
 
 
 def page_kind(device):
@@ -266,6 +289,8 @@ class Backend(QObject):
                 view = keyboard_view(device)
             elif page == "headset":
                 view = headset_view(device)
+            elif page == "xeneon":
+                view = xeneon_view(device)
             else:
                 view = {"serial": serial, "product": device.get("product") or serial}
             self._active = dict(view, page=page)
@@ -412,6 +437,27 @@ class Backend(QObject):
     @Slot(int)
     def setKeyboardDebounceTime(self, value):
         self._keyboard("/api/keyboard/debounceTime", {"debounceTime": int(value)})
+
+    # --- XENEON EDGE screen (requests of overview.js) ---
+
+    @Slot(str, int)
+    def setXeneonValue(self, name, value):
+        """brightness, contrast or backlight, 0-100."""
+        paths = {"brightness": "/api/brightness/gradual", "contrast": "/api/contrast/gradual",
+                 "backlight": "/api/backlight/gradual"}
+        if name in paths and 0 <= value <= 100:
+            self._change(paths[name], {"deviceId": self._active_serial, name: int(value)})
+
+    @Slot(int, int)
+    def setXeneonTone(self, kind, value):
+        """Colour tone 0-255: 0 red, 1 green, 2 blue."""
+        if kind in (0, 1, 2) and 0 <= value <= 255:
+            self._change("/api/colortone", {"deviceId": self._active_serial, "colorTone": int(value),
+                                            "colorToneType": int(kind)})
+
+    @Slot()
+    def resetXeneon(self):
+        self._change("/api/resetSettings", {"deviceId": self._active_serial})
 
     @Slot(int)
     def setPsuFanMode(self, mode):

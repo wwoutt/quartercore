@@ -7,7 +7,7 @@ import signal
 import sys
 import threading
 
-from . import psu
+from . import psu, xeneon
 from .server import Core, serve
 from .store import Store
 
@@ -28,7 +28,7 @@ def main(argv=None):
     def log(text):
         print(text, flush=True)
 
-    core = Core(args.openlinkhub, lambda: psu.discover(store), args.standalone, log)
+    core = Core(args.openlinkhub, lambda: psu.discover(store) + xeneon.discover(store), args.standalone, log)
     server = serve(core, args.port)
 
     def shutdown(*_):
