@@ -16,7 +16,7 @@ ApplicationWindow {
     visible: false
     title: "Quartercore"
 
-    // "" for the overview and device pages, or "profiles" or "settings"
+    // "" for the overview and device pages, or "profiles", "lighting" or "settings"
     property string section: ""
 
     function open(serial) {
@@ -67,6 +67,14 @@ ApplicationWindow {
                     icon.name: "temperature-normal"
                     highlighted: window.section === "profiles"
                     onClicked: window.section = "profiles"
+                }
+
+                ItemDelegate {
+                    Layout.fillWidth: true
+                    text: qsTr("Lighting")
+                    icon.name: "color-management"
+                    highlighted: window.section === "lighting"
+                    onClicked: window.section = "lighting"
                 }
 
                 Label {
@@ -132,6 +140,7 @@ ApplicationWindow {
                 source: window.section === "settings" ? "SettingsPage.qml"
                       : !backend.connected ? "Disconnected.qml"
                       : window.section === "profiles" ? "ProfilesPage.qml"
+                      : window.section === "lighting" ? "LightingPage.qml"
                       : backend.activeSerial === "" ? "Overview.qml"
                       : backend.active.page === "linkhub" ? "LinkHub.qml"
                       : backend.active.page === "web" ? "WebOnly.qml"

@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.3 has:
+- Version 0.4 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -39,6 +39,10 @@ not audited by an independent developer.
     (CPU, GPU, liquid, drive, CPU + GPU or power supply sensor; curve, static or
     linear; zero RPM) and delete them. Uses OpenLinkHub's graph profiles
     (`"graphProfiles": true` in its `config.json`).
+  - **Lighting**: the RGB effects of each device with a colour preview; set the two
+    colours, the colours per temperature (CPU, GPU and liquid effects), a gradient
+    with any number of colours, the probe range, speed, direction and alternating
+    colours; use an effect on every device of a LINK System Hub in one click.
   - **Tray icon**: CPU and GPU temperature in the tooltip and menu, a speed profile
     for all fans and pump of a hub in two clicks, quick links to the XENEON EDGE
     layout and the web interface. Closing the window keeps Quartercore in the tray.
@@ -51,7 +55,7 @@ not audited by an independent developer.
 - **Not a replacement for OpenLinkHub.** OpenLinkHub must be installed and running;
   this program only controls it.
 - **Not complete.** Most device types (keyboards, mice, headsets, power supplies,
-  LCDs, the RGB editor, macros) still use the web interface. Temperature profiles
+  LCDs, per-LED colours, macros) still use the web interface. Temperature profiles
   with probes, external sensors or multiple GPUs, and the step table used when
   `graphProfiles` is off, are only in the web interface for now.
   See [ROADMAP.md](ROADMAP.md).

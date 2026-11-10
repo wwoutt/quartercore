@@ -31,9 +31,50 @@ def initial_profiles():
     }
 
 
+def rgb(r, g, b, temperature=0, position=0):
+    return {"red": r, "green": g, "blue": b, "brightness": 1, "position": position, "temperature": temperature, "Hex": ""}
+
+
+def effect(name, speed=4, start=(0, 255, 255), end=(0, 255, 255), direction=0, gradients=None, middle=(0, 0, 0)):
+    return {"speed": speed, "brightness": 1, "smoothness": 20, "start": rgb(*start), "middle": rgb(*middle),
+            "end": rgb(*end), "gradients": gradients, "minTemp": 0, "maxTemp": 0, "profileName": name,
+            "alternateColors": False, "rgbDirection": direction, "perLed": False}
+
+
+def initial_effects():
+    return {
+        "static": effect("Static", start=(0, 255, 255), end=(0, 255, 255)),
+        "colorwave": effect("Color Wave", speed=2, start=(255, 0, 0), end=(0, 0, 255), direction=4),
+        "rainbow": effect("Rainbow", speed=4),
+        "cpu-temperature": dict(effect("CPU Temperature"), start=rgb(0, 255, 0, 20), middle=rgb(255, 255, 0, 50),
+                                end=rgb(255, 0, 0, 95)),
+        "gradient": effect("Gradient", speed=10, gradients={
+            "0": rgb(255, 0, 0, position=0), "1": rgb(0, 255, 0, position=0.5), "2": rgb(0, 0, 255, position=1)}),
+        "probe-temperature": effect("Probe Temperature"),
+        "off": effect(""),
+        "keyboard": effect("Keyboard"),
+        "led": dict(effect("Per LED"), perLed=True),
+    }
+
+
+HUB = {
+    "serial": "HUB1", "product": "iCUE LINK System Hub", "firmware": "1.0", "Template": "lsh.html",
+    "DeviceProfile": {"BrightnessSlider": 100}, "RGBModes": ["static", "rainbow"],
+    "devices": {
+        "1": {"name": "iCUE LINK RX RGB", "label": "Set Label", "description": "Fan", "rpm": 700,
+              "temperatureString": "", "profile": "Normal", "rgb": "static", "HasSpeed": True},
+        "2": {"name": "iCUE LINK TITAN 360", "label": "Set Label", "description": "AIO", "rpm": 2400,
+              "temperatureString": "26.5 °C", "profile": "Normal", "rgb": "static", "HasSpeed": True},
+        "3": {"name": "Temperature probe", "label": "Set Label", "description": "Probe", "rpm": 0,
+              "temperatureString": "30 °C", "profile": "", "rgb": "", "HasSpeed": False, "IsTemperatureProbe": True},
+    },
+}
+
+
 class State:
     def __init__(self):
         self.profiles = initial_profiles()
+        self.effects = {"HUB1": initial_effects(), "KB1": initial_effects()}
         self.requests = []
         self.lock = threading.Lock()
 
@@ -76,7 +117,19 @@ class Handler(BaseHTTPRequestHandler):
             self.reply({"code": 200, "status": 1, "data": {
                 k: {"sensor": p["sensor"], "points": v} for k, v in p["points"].items()}})
         elif self.path == "/api/devices/":
-            self.reply({"code": 200, "status": 0, "devices": {}})
+            self.reply({"code": 200, "status": 0, "devices": {
+                "HUB1": {"Product": "iCUE LINK System Hub"}, "KB1": {"Product": "K100"},
+                "PSU1": {"Product": "HX1500i"}}})
+        elif self.path == "/api/devices/HUB1":
+            self.reply({"code": 200, "status": 0, "device": HUB})
+        elif self.path in ("/api/devices/KB1", "/api/devices/PSU1"):
+            self.reply({"code": 200, "status": 0, "device": {"product": "Other", "Template": "other.html"}})
+        elif self.path.startswith("/api/color/"):
+            serial = self.path.rsplit("/", 1)[1]
+            if serial not in s.effects:
+                self.reply({"code": 200, "status": 0, "message": "No such RGB profile"})
+                return
+            self.reply({"code": 200, "status": 1, "data": {"device": serial, "profiles": s.effects[serial]}})
         elif self.path == "/api/stats/memory":
             self.reply({"code": 200, "status": 1, "data": {"Total": 34359738368, "Used": 8589934592, "UsedPercent": 25}})
         elif self.path == "/api/storageTemp":
@@ -92,6 +145,21 @@ class Handler(BaseHTTPRequestHandler):
         body = self.body()
         with s.lock:
             s.requests.append(("PUT", self.path, body))
+            if self.path == "/api/color/change":
+                fx = s.effects.get(body.get("deviceId"), {}).get(body.get("profile"))
+                if fx is None:
+                    self.refuse("Non-existing profile")
+                    return
+                if not 1 <= body.get("speed", 0) <= 10:
+                    self.refuse("Invalid speed")
+                    return
+                fx.update(start=body["startColor"], middle=body["middleColor"], end=body["endColor"],
+                          speed=body["speed"], alternateColors=body["alternateColors"],
+                          rgbDirection=body["rgbDirection"])
+                if "colorZones" in body:
+                    fx["gradients"] = body["colorZones"]
+                self.ok("RGB profile is updated")
+                return
             if self.path == "/api/temperatures/updateGraph":
                 p = s.profiles.get(body.get("profile"))
                 if p is None:

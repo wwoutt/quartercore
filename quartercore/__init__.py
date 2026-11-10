@@ -5,4 +5,4 @@
 # A client for the HTTP API of OpenLinkHub by Nikola Jurkovic
 # (https://github.com/jurkovic-nikola/OpenLinkHub). Not an official Corsair product.
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"

@@ -243,16 +243,26 @@ class Backend(QObject):
     @Slot(str, str)
     def setHubSpeedProfile(self, serial, profile):
         """Speed profile for every fan and pump of a hub, also when it isn't the open page (tray menu)."""
+        self._for_all_channels(serial, "/api/speed", profile, lambda ch: ch["hasSpeed"],
+                               self.tr("Speed profile %1 set").replace("%1", profile))
+
+    @Slot(str, str)
+    def setHubRgbProfile(self, serial, profile):
+        """RGB effect for every device on a hub (lighting page)."""
+        self._for_all_channels(serial, "/api/color", profile, lambda ch: not ch["isProbe"],
+                               self.tr("Effect %1 set").replace("%1", profile))
+
+    def _for_all_channels(self, serial, path, profile, wanted, message):
         def done(ok, data, error):
             if not ok:
                 self.notify.emit(error, False)
                 return
             view = link_hub_view(data.get("device") or {})
             for ch in view["channels"]:
-                if ch["hasSpeed"]:
-                    self.api.post("/api/speed", {"deviceId": serial, "channelId": ch["channelId"],
-                                                 "profile": profile}, report)
-            self.notify.emit(self.tr("Speed profile %1 set").replace("%1", profile), True)
+                if wanted(ch):
+                    self.api.post(path, {"deviceId": serial, "channelId": ch["channelId"],
+                                         "profile": profile}, report)
+            self.notify.emit(message, True)
 
         def report(ok, data, error):
             if not ok:

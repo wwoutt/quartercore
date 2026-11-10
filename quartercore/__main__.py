@@ -3,7 +3,7 @@
 # License: GPL-3.0 or later
 #
 # Usage: python3 -m quartercore [--url http://127.0.0.1:27003] [--minimized]
-#        [--screenshot file.png [--page serial|settings|profiles]]   (grab the window and exit, for tests)
+#        [--screenshot file.png [--page serial|settings|profiles[:name]|lighting[:effect]]]   (grab the window and exit, for tests)
 
 import argparse
 import getpass
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from . import __version__, i18n
 from .backend import Backend
+from .lighting import Lighting
 from .profiles import Profiles
 from .settings import Settings
 from .tray import Tray
@@ -77,6 +78,8 @@ def main():
     context.setContextProperty("settings", settings)
     profiles = Profiles(backend)
     context.setContextProperty("profiles", profiles)
+    lighting = Lighting(backend)
+    context.setContextProperty("lighting", lighting)
     context.setContextProperty("appVersion", __version__)
     context.setContextProperty("languages", [{"code": "system", "name": ""}]
                                + [{"code": k, "name": v} for k, v in i18n.LANGUAGES.items()])
@@ -123,10 +126,12 @@ def main():
     if args.screenshot:
         # profiles:<name> opens that profile
         section, _, profile = args.page.partition(":")
-        if section in ("settings", "profiles"):
+        if section in ("settings", "profiles", "lighting"):
             QTimer.singleShot(1500, lambda: window.setProperty("section", section))
-            if profile:
+            if profile and section == "profiles":
                 QTimer.singleShot(3000, lambda: profiles.select(profile))
+            elif profile and section == "lighting":
+                QTimer.singleShot(3000, lambda: lighting.selectEffect(profile))
         elif args.page:
             QTimer.singleShot(1500, lambda: backend.selectDevice(args.page))
 

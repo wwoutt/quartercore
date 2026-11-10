@@ -8,7 +8,7 @@ has its own page, it opens in the OpenLinkHub web interface. Estimates are rough
 | 1 | Overview, iCUE LINK System Hub (speed, RGB, labels, brightness) | **done** (0.1) |
 | 2 | Tray icon, start with the desktop session, settings (server URL, language) | **done** (0.2) |
 | 3 | Temperature (speed) profiles: list, create, edit curves | **done** (0.3); probes, external sensors and the step table (graphProfiles off) still to do |
-| 4 | RGB profiles and colour editing (static colours, effects, speed) | planned |
+| 4 | RGB profiles and colour editing (static colours, effects, speed) | **done** (0.4); per-LED colours and the RGB cluster still to do |
 | 5 | HX1500i and other power supplies | planned |
 | 6 | K100 and other keyboards: lighting, profiles, key assignments, macros | planned |
 | 7 | HS80 MAX and other headsets: lighting, equalizer, sidetone, sleep | planned |

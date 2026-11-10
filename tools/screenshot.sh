@@ -3,7 +3,7 @@
 # Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 # License: GPL-3.0 or later
 #
-# Usage: tools/screenshot.sh <output.png> [device-serial|settings|profiles[:name]] [--fake]
+# Usage: tools/screenshot.sh <output.png> [device-serial|settings|profiles[:name]|lighting[:effect]] [--fake]
 #   --fake  uses tests/fake_openlinkhub.py instead of the real OpenLinkHub
 
 cd "$(dirname "$0")/.." || exit 1
