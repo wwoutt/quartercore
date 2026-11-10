@@ -81,8 +81,9 @@ not audited by an independent developer.
   - Devices without a page yet open in the OpenLinkHub web interface.
 
 ## What it is not
-- **Not a replacement for OpenLinkHub.** OpenLinkHub must be installed and running;
-  this program only controls it.
+- **Not a replacement for OpenLinkHub (yet).** OpenLinkHub must be installed and
+  running; this program only controls it. Moving the device control into
+  Quartercore, one device at a time, is planned in [ROADMAP.md](ROADMAP.md) (part 2).
 - **Not complete.** Most device types (other keyboards than the K100, mice, other
   headsets than the HS80 MAX WIRELESS, USB-dongle power supplies, LCDs, per-LED
   colours) still use the web interface. Temperature profiles
