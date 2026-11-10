@@ -16,10 +16,11 @@ ApplicationWindow {
     visible: false
     title: "Quartercore"
 
-    property bool showSettings: false
+    // "" for the overview and device pages, or "profiles" or "settings"
+    property string section: ""
 
     function open(serial) {
-        showSettings = false
+        section = ""
         backend.selectDevice(serial)
     }
 
@@ -56,8 +57,16 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     text: qsTr("Overview")
                     icon.name: "view-dashboard"
-                    highlighted: !window.showSettings && backend.activeSerial === ""
+                    highlighted: window.section === "" && backend.activeSerial === ""
                     onClicked: window.open("")
+                }
+
+                ItemDelegate {
+                    Layout.fillWidth: true
+                    text: qsTr("Temperature profiles")
+                    icon.name: "temperature-normal"
+                    highlighted: window.section === "profiles"
+                    onClicked: window.section = "profiles"
                 }
 
                 Label {
@@ -77,7 +86,7 @@ ApplicationWindow {
                         width: ListView.view.width
                         text: modelData.product
                         icon.name: modelData.page === "web" ? "internet-web-browser" : "preferences-system"
-                        highlighted: !window.showSettings && backend.activeSerial === modelData.serial
+                        highlighted: window.section === "" && backend.activeSerial === modelData.serial
                         onClicked: window.open(modelData.serial)
                     }
                 }
@@ -93,8 +102,8 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     text: qsTr("Settings")
                     icon.name: "configure"
-                    highlighted: window.showSettings
-                    onClicked: window.showSettings = true
+                    highlighted: window.section === "settings"
+                    onClicked: window.section = "settings"
                 }
 
                 Label {
@@ -120,8 +129,9 @@ ApplicationWindow {
 
             Loader {
                 anchors.fill: parent
-                source: window.showSettings ? "SettingsPage.qml"
+                source: window.section === "settings" ? "SettingsPage.qml"
                       : !backend.connected ? "Disconnected.qml"
+                      : window.section === "profiles" ? "ProfilesPage.qml"
                       : backend.activeSerial === "" ? "Overview.qml"
                       : backend.active.page === "linkhub" ? "LinkHub.qml"
                       : backend.active.page === "web" ? "WebOnly.qml"
@@ -144,10 +154,10 @@ ApplicationWindow {
             toast.text = (ok ? "✓ " : "⚠ ") + text
             toast.open()
         }
-        // Opening a device from the tray menu leaves the settings page
+        // Opening a device from the tray menu leaves the other sections
         function onActiveChanged() {
             if (backend.activeSerial !== "")
-                window.showSettings = false
+                window.section = ""
         }
     }
 }

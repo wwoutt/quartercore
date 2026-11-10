@@ -32,6 +32,9 @@ class ApiClient(QObject):
     def put(self, path, body, callback=None):
         self._send("PUT", path, body, callback)
 
+    def delete(self, path, body, callback=None):
+        self._send("DELETE", path, body, callback)
+
     def _send(self, method, path, body, callback):
         request = QNetworkRequest(QUrl(self.base_url + path))
         request.setTransferTimeout(TIMEOUT_MS)

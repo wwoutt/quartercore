@@ -3,7 +3,7 @@
 # License: GPL-3.0 or later
 #
 # Usage: python3 -m quartercore [--url http://127.0.0.1:27003] [--minimized]
-#        [--screenshot file.png [--page serial|settings]]   (grab the window and exit, for tests)
+#        [--screenshot file.png [--page serial|settings|profiles]]   (grab the window and exit, for tests)
 
 import argparse
 import getpass
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from . import __version__, i18n
 from .backend import Backend
+from .profiles import Profiles
 from .settings import Settings
 from .tray import Tray
 
@@ -74,6 +75,8 @@ def main():
     context = engine.rootContext()
     context.setContextProperty("backend", backend)
     context.setContextProperty("settings", settings)
+    profiles = Profiles(backend)
+    context.setContextProperty("profiles", profiles)
     context.setContextProperty("appVersion", __version__)
     context.setContextProperty("languages", [{"code": "system", "name": ""}]
                                + [{"code": k, "name": v} for k, v in i18n.LANGUAGES.items()])
@@ -118,8 +121,12 @@ def main():
         show_window()
 
     if args.screenshot:
-        if args.page == "settings":
-            QTimer.singleShot(1500, lambda: window.setProperty("showSettings", True))
+        # profiles:<name> opens that profile
+        section, _, profile = args.page.partition(":")
+        if section in ("settings", "profiles"):
+            QTimer.singleShot(1500, lambda: window.setProperty("section", section))
+            if profile:
+                QTimer.singleShot(3000, lambda: profiles.select(profile))
         elif args.page:
             QTimer.singleShot(1500, lambda: backend.selectDevice(args.page))
 

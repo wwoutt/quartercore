@@ -28,12 +28,17 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.2 has:
+- Version 0.3 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
     temperature, speed profile, RGB profile and label per device, and brightness,
     speed and lighting for all of them at once.
+  - **Temperature profiles**: the built-in and your own profiles with their fan and
+    pump curves; drag, add and remove points on your own curves; create profiles
+    (CPU, GPU, liquid, drive, CPU + GPU or power supply sensor; curve, static or
+    linear; zero RPM) and delete them. Uses OpenLinkHub's graph profiles
+    (`"graphProfiles": true` in its `config.json`).
   - **Tray icon**: CPU and GPU temperature in the tooltip and menu, a speed profile
     for all fans and pump of a hub in two clicks, quick links to the XENEON EDGE
     layout and the web interface. Closing the window keeps Quartercore in the tray.
@@ -46,7 +51,9 @@ not audited by an independent developer.
 - **Not a replacement for OpenLinkHub.** OpenLinkHub must be installed and running;
   this program only controls it.
 - **Not complete.** Most device types (keyboards, mice, headsets, power supplies,
-  LCDs, the RGB editor, temperature profiles, macros) still use the web interface.
+  LCDs, the RGB editor, macros) still use the web interface. Temperature profiles
+  with probes, external sensors or multiple GPUs, and the step table used when
+  `graphProfiles` is off, are only in the web interface for now.
   See [ROADMAP.md](ROADMAP.md).
 - **Not iCUE**, and not for Windows or macOS.
 
@@ -72,8 +79,10 @@ iCUE LINK System Hub (12 RX RGB fans and a TITAN 360 AIO).
 ## Development
 - `python3 -m unittest discover -s tests`: tests against a fake OpenLinkHub
   (they never touch real hardware)
-- `tools/screenshot.sh out.png [serial|settings]`: grabs the window offscreen against a
-  running OpenLinkHub
+- `python3 tests/fake_openlinkhub.py`: the fake on port 27099, to try Quartercore
+  without changing your real profiles: `python3 -m quartercore --url http://127.0.0.1:27099`
+- `tools/screenshot.sh out.png [serial|settings|profiles[:name]] [--fake]`: grabs the
+  window offscreen against the running OpenLinkHub or the fake
 - `tools/tray-check.sh`: checks the tray icon and the single instance in your desktop session
 - Translations: `quartercore/i18n/<language>.json` maps the English texts to the
   translation; the tests fail when a text has no Dutch translation

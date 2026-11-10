@@ -22,9 +22,9 @@ from quartercore.settings import Settings, autostart_file  # noqa: E402
 
 
 def source_texts():
-    """Every text the interface translates: qsTr("...") in QML, tr("...") in Python."""
+    """Every text the interface translates: qsTr("...") in QML, tr("...") and N_("...") in Python."""
     texts = set()
-    pattern = re.compile(r'(?:qsTr|tr)\("((?:[^"\\]|\\.)*)"\)')
+    pattern = re.compile(r'(?:qsTr|tr|N_)\("((?:[^"\\]|\\.)*)"\)')
     for path in list((ROOT / "quartercore").rglob("*.qml")) + list((ROOT / "quartercore").rglob("*.py")):
         for match in pattern.finditer(path.read_text(encoding="utf-8")):
             texts.add(match.group(1).replace('\\"', '"').replace("\\'", "'"))
