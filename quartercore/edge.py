@@ -2,6 +2,9 @@
 # Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 # License: GPL-3.0 or later
 #
+# Modified by wwoutt, 2026-11-11: own widgets 17-23 (network, power, GPU details, Home Assistant,
+# processes, system info), not in OpenLinkHub.
+#
 # Native QML version of the OpenLinkHub kiosk page (web/xeneon.html and
 # static/js/xeneon.js by Nikola Jurkovic) with the free layout of the fork
 # wwoutt/OpenLinkHub (a 24 x 12 grid on 2560 x 720). The layout and widget
@@ -66,7 +69,22 @@ WIDGET_DEFAULTS = {
     16: {"name": "Storage Overview", "template": "xeneon-storage", "headerText": "Storage Overview",
          "dataColor": "#38bdf8", "textColor": "#e6e6e6", "subTextColor": "#a1a1a1", "fontSize": 36,
          "subFontSize": 15, "storageSensor": "*", "unit": "°C"},
+    # Quartercore's own widgets (not in OpenLinkHub)
+    17: {"name": "Network", "template": "xeneon-network", "headerText": "Network", "dataColor": "#38bdf8",
+         "uploadColor": "#f472b6", "interface": "", "rateUnit": "bytes", "historySeconds": 60},
+    18: {"name": "Power", "template": "xeneon-power", "headerText": "Power", "dataColor": "#FFC107",
+         "deviceId": "", "pricePerKwh": 0.30, "currency": "€", "historyMinutes": 5},
+    19: {"name": "GPU Details", "template": "xeneon-gpu-details", "headerText": "GPU", "dataColor": "#38bdf8",
+         "unit": "°C"},
+    20: {"name": "Home Assistant", "template": "xeneon-homeassistant", "headerText": "Home Assistant",
+         "dataColor": "#38bdf8", "entities": "", "refreshSeconds": 5},
+    21: {"name": "Top Processes", "template": "xeneon-processes", "headerText": "Processes",
+         "dataColor": "#38bdf8", "sortBy": "cpu", "count": 5},
+    22: {"name": "System Info", "template": "xeneon-system", "headerText": "System", "dataColor": "#38bdf8"},
+    23: {"name": "Home Assistant Buttons", "template": "xeneon-ha-buttons", "headerText": "",
+         "dataColor": "#38bdf8", "entities": "", "refreshSeconds": 5},
 }
+HOME_ASSISTANT_TEMPLATES = {"xeneon-homeassistant", "xeneon-ha-buttons"}
 # Upstream default widget areas (xeneonedge.go, first save): area -> widget id
 DEFAULT_AREAS = {1: 1, 2: 2, 3: 6, 4: 7, 5: 8, 6: 9, 9: 3, 10: 5, 11: 4}
 # Where the upstream page (web/xeneon.html) puts each area, in grid cells:
@@ -218,6 +236,82 @@ def format_bytes(value):
         size /= 1024
         index += 1
     return ("%.0f" if index == 0 else "%.1f") % size + " " + units[index]
+
+
+def network_view(history, settings):
+    from .sensors import format_rate
+    if not history:
+        return {"available": False}
+    bits = settings.get("rateUnit") == "bits"
+    down, up = history[-1]
+    top = max(max(d, u) for d, u in history) or 1
+    return {"available": True, "down": format_rate(down, bits), "up": format_rate(up, bits),
+            "downHistory": [d / top for d, _ in history], "upHistory": [u / top for _, u in history],
+            "peak": format_rate(top, bits)}
+
+
+def power_view(psu, history, settings):
+    """Power from the wall (input) and to the computer (output), with the cost at the set price."""
+    if not psu:
+        return {"available": False}
+    watts, output = float(psu.get("power") or 0), float(psu.get("outputPower") or 0)
+    try:
+        price = float(settings.get("pricePerKwh") or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    currency = settings.get("currency") or ""
+    top = max(history or [watts]) or 1
+    return {"available": True, "watts": "%.0f W" % watts, "output": "%.0f W" % output,
+            "efficiency": "%.0f %%" % (output / watts * 100) if watts > 0 and output > 0 else "",
+            "costHour": "%s %.2f" % (currency, watts / 1000 * price) if price else "",
+            "costDay": "%s %.2f" % (currency, watts / 1000 * price * 24) if price else "",
+            "history": [v / top for v in history], "peak": "%.0f W" % top, "product": psu.get("product") or ""}
+
+
+def gpu_details_view(temperature, load, details, settings):
+    if temperature is None and not details:
+        return {"available": False}
+    d = details or {}
+
+    def amount(value, unit, digits=0):
+        return ("%." + str(digits) + "f %s") % (value, unit) if value is not None else "–"
+    used, total = d.get("memoryUsed"), d.get("memoryTotal")
+    temp = to_unit(temperature, settings.get("unit")) if temperature is not None else None
+    return {"available": True, "name": d.get("name") or "GPU",
+            "temperature": ("%.0f %s" % (temp, settings.get("unit") or "°C")) if temp is not None else "–",
+            "load": load or 0, "loadText": amount(load, "%"),
+            "memory": ("%.1f / %.1f GB" % (used / 1024, total / 1024)) if used is not None and total else "–",
+            "memoryFraction": (used / total) if used is not None and total else 0,
+            "power": amount(d.get("power"), "W") + (" / " + amount(d.get("powerLimit"), "W")
+                                                     if d.get("powerLimit") else ""),
+            "clock": amount(d.get("clock"), "MHz"), "memoryClock": amount(d.get("memoryClock"), "MHz"),
+            "fan": amount(d.get("fan"), "%")}
+
+
+def processes_view(rows):
+    if rows is None:
+        return {"available": False, "rows": []}
+    return {"available": True, "rows": [
+        {"name": r["name"], "cpu": "%.1f %%" % r["cpu"] if r.get("cpu") is not None else "…",
+         "memory": format_bytes(r["memory"])} for r in rows]}
+
+
+def uptime_text(seconds):
+    if seconds is None:
+        return "–"
+    minutes = int(seconds // 60)
+    days, hours, minutes = minutes // 1440, minutes // 60 % 24, minutes % 60
+    return ("%d d %d h" % (days, hours)) if days else ("%d h %d min" % (hours, minutes))
+
+
+def system_view(info):
+    if not info:
+        return {"available": False}
+    load = info.get("load") or []
+    return {"available": True, "host": info.get("host") or "", "os": info.get("os") or "",
+            "kernel": info.get("kernel") or "", "cpu": info.get("cpu") or "",
+            "uptime": uptime_text(info.get("uptime")), "load": "  ".join("%.2f" % v for v in load) or "–",
+            "processes": str(info.get("processes") or "–")}
 
 
 def sensor(devices, serial, channel):
@@ -428,10 +522,19 @@ class Edge(QObject):
     clockChanged = Signal()
     screenChanged = Signal()
 
-    def __init__(self, backend, parent=None, sensors=None, media=None):
+    def __init__(self, backend, parent=None, sensors=None, media=None, home_assistant=None):
         super().__init__(parent or backend)
         from . import media as media_module, sensors as sensors_module
         self.backend = backend
+        self.home_assistant = home_assistant
+        if home_assistant is not None:
+            home_assistant.statesChanged.connect(self._rebuild)
+        self._network = getattr(sensors or sensors_module, "NetworkRate", sensors_module.NetworkRate)()
+        self._processes = getattr(sensors or sensors_module, "ProcessTop", sensors_module.ProcessTop)()
+        self._system_info = getattr(sensors or sensors_module, "system_info", sensors_module.system_info)
+        self._net_history = []
+        self._power_history = []
+        self._ha_at = 0
         self._items = []
         self._preview = []
         self._data = {}
@@ -568,6 +671,7 @@ class Edge(QObject):
             else:
                 # Device sensors and batteries: still from OpenLinkHub
                 self.api.get(path, self._store(name))
+        self._tick_own(self._templates())
         if self._ticks % 2 == 0:
             self._sample_history()
         if self._ticks % 3 == 0:
@@ -620,8 +724,82 @@ class Edge(QObject):
                 out[key] = self._raw.get("weather:" + key) or {"available": False}
             elif t == "xeneon-profile-shortcuts":
                 out[key] = self._profiles.get(s.get("deviceId") or "", {"profiles": [], "available": False})
+            elif t == "xeneon-network":
+                out[key] = network_view(self._net_history, s)
+            elif t == "xeneon-power":
+                out[key] = power_view(raw.get("power"), self._power_history, s)
+            elif t == "xeneon-gpu-details":
+                out[key] = gpu_details_view(raw.get("gpuTemp"), raw.get("gpuLoad"), getattr(self.gpu, "details", {}), s)
+            elif t == "xeneon-processes":
+                out[key] = processes_view(raw.get("processes:" + key))
+            elif t == "xeneon-system":
+                out[key] = system_view(raw.get("system"))
+            elif t in HOME_ASSISTANT_TEMPLATES:
+                out[key] = self._home_assistant_view(s)
         self._data = out
         self.dataChanged.emit()
+
+    # --- own widgets: network, power, GPU details, processes, system, Home Assistant ---
+
+    def _tick_own(self, templates):
+        items = self._all()
+        if "xeneon-network" in templates:
+            s = next(i["settings"] for i in items if i["template"] == "xeneon-network")
+            rate = self._network.read(s.get("interface") or "")
+            if rate is not None:
+                keep = max(10, int(s.get("historySeconds") or 60))
+                self._net_history = (self._net_history + [rate])[-keep:]
+        if "xeneon-gpu-details" in templates and "gpu" not in {n for t in templates for n in NEEDS.get(t, [])}:
+            self.gpu.refresh()
+        if "xeneon-power" in templates and self._ticks % 2 == 0:
+            s = next(i["settings"] for i in items if i["template"] == "xeneon-power")
+            serial = s.get("deviceId") or next((d["serial"] for d in self.backend.devices if d.get("page") == "psu"), "")
+            if serial:
+                self.api.get("/api/devices/" + serial, self._power_done(s))
+        if self._ticks % 2 == 0:
+            for item in items:
+                if item["template"] == "xeneon-processes":
+                    s = item["settings"]
+                    self._raw["processes:" + item["key"]] = self._processes.read(s.get("sortBy") or "cpu",
+                                                                                 int(s.get("count") or 5))
+        if "xeneon-system" in templates and self._ticks % 5 == 0:
+            self._raw["system"] = self._system_info()
+        if templates & HOME_ASSISTANT_TEMPLATES and self.home_assistant is not None:
+            every = min(max(2, int(i["settings"].get("refreshSeconds") or 5)) for i in items
+                        if i["template"] in HOME_ASSISTANT_TEMPLATES)
+            if time.time() - self._ha_at >= every:
+                self._ha_at = time.time()
+                self.home_assistant.refresh()
+
+    def _power_done(self, settings):
+        def done(ok, data, error):
+            from .backend import psu_view
+            device = (data or {}).get("device") if ok else None
+            view = psu_view(device) if device else None
+            self._raw["power"] = view
+            if view is not None:
+                keep = max(1, int(settings.get("historyMinutes") or 5)) * 30      # one sample every 2 s
+                self._power_history = (self._power_history + [view["power"]])[-keep:]
+            self._rebuild()
+        return done
+
+    def _home_assistant_view(self, settings):
+        from .homeassistant import entity_list, tile
+        ha = self.home_assistant
+        if ha is None or not ha.configured:
+            return {"available": False, "message": self.tr("Set the Home Assistant address and token in the settings"),
+                    "tiles": []}
+        entities = entity_list(settings.get("entities"))
+        if not entities:
+            return {"available": False, "message": self.tr("Choose entities in the layout editor"), "tiles": []}
+        return {"available": True, "message": ha.status,
+                "tiles": [tile(e, ha.state(e)) for e in entities]}
+
+    @Slot(str)
+    def activateEntity(self, entity_id):
+        """A tap on a Home Assistant tile in the kiosk."""
+        if self.home_assistant is not None:
+            self.home_assistant.activate(entity_id)
 
     # --- temperature history ---
 

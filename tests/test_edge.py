@@ -27,8 +27,11 @@ from test_backend import wait  # noqa: E402
 
 class LayoutTest(unittest.TestCase):
     def test_all_widgets_have_defaults(self):
-        self.assertEqual(sorted(e.WIDGET_DEFAULTS), list(range(1, 17)))
-        self.assertEqual(len({w["template"] for w in e.WIDGET_DEFAULTS.values()}), 16)
+        # The 16 of OpenLinkHub and Quartercore's own 17-23, each with its own template
+        self.assertEqual(sorted(e.WIDGET_DEFAULTS), list(range(1, 24)))
+        self.assertEqual(len({w["template"] for w in e.WIDGET_DEFAULTS.values()}), 23)
+        from quartercore.edgeeditor import WIDGET_NAMES
+        self.assertEqual(sorted(WIDGET_NAMES), sorted(e.WIDGET_DEFAULTS))
 
     def test_default_layout_follows_the_upstream_page(self):
         items = {i["widgetId"]: i for i in e.build_items(e.default_areas(), None)}

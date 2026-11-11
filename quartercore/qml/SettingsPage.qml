@@ -68,6 +68,64 @@ Flickable {
             }
         }
 
+
+        // Home Assistant for the XENEON EDGE widgets
+        Frame {
+            Layout.fillWidth: true
+            Layout.leftMargin: 24
+            Layout.rightMargin: 24
+
+            GridLayout {
+                anchors.fill: parent
+                columns: 2
+                columnSpacing: 16
+                rowSpacing: 10
+
+                Label { text: qsTr("Home Assistant"); font.bold: true; Layout.columnSpan: 2 }
+                Label { text: qsTr("Address") }
+                TextField {
+                    id: haUrl
+                    Layout.fillWidth: true
+                    text: settings.haUrl
+                    placeholderText: "http://homeassistant.local:8123"
+                    onEditingFinished: settings.haUrl = text
+                }
+                Label { text: qsTr("Token") }
+                TextField {
+                    id: haToken
+                    Layout.fillWidth: true
+                    text: settings.haToken
+                    echoMode: TextInput.Password
+                    placeholderText: qsTr("Long-lived access token")
+                    onEditingFinished: settings.haToken = text
+                }
+                Item {}
+                RowLayout {
+                    Layout.fillWidth: true
+                    Button {
+                        text: qsTr("Test the connection")
+                        onClicked: {
+                            settings.haUrl = haUrl.text
+                            settings.haToken = haToken.text
+                            homeAssistant.test()
+                        }
+                    }
+                    Label {
+                        text: homeAssistant.testResult
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        opacity: 0.8
+                    }
+                }
+                Item {}
+                Label {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    opacity: 0.6
+                    text: qsTr("Make the token in Home Assistant under your profile, Security, Long-lived access tokens. Quartercore keeps it in its settings file, readable only by you, and only sends it to this address.")
+                }
+            }
+        }
         Frame {
             Layout.fillWidth: true
             Layout.leftMargin: 24

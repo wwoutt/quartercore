@@ -1,6 +1,7 @@
 # XENEON EDGE layout and widget settings, stored by Quartercore itself
 # Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 # License: GPL-3.0 or later
+# Modified by wwoutt, 2026-11-11: settings of the own widgets 17-23
 #
 # The layout lives in ~/.config/Quartercore/xeneon-edge.json, so the native
 # kiosk doesn't need OpenLinkHub (roadmap step A). The grid is the one of the
@@ -201,6 +202,38 @@ FIELDS = {
     "xeneon-gpu-temp": [DATA_COLOR, HEADER, UNIT, maximum(1000)],
     "xeneon-cpu-load": [DATA_COLOR, HEADER, maximum(100)],
     "xeneon-gpu-load": [DATA_COLOR, HEADER, maximum(100)],
+    # Quartercore's own widgets
+    "xeneon-network": [
+        DATA_COLOR, {"name": "uploadColor", "label": N_("Upload colour"), "kind": "color"}, HEADER,
+        {"name": "interface", "label": N_("Network connection"), "kind": "netInterface"},
+        {"name": "rateUnit", "label": N_("Speed in"), "kind": "choice",
+         "choices": [{"value": "bytes", "name": N_("Bytes (MB/s)")}, {"value": "bits", "name": N_("Bits (Mbit/s)")}]},
+        {"name": "historySeconds", "label": N_("Seconds in the graph"), "kind": "int", "min": 10, "max": 600},
+    ],
+    "xeneon-power": [
+        DATA_COLOR, HEADER, {"name": "deviceId", "label": N_("Power supply"), "kind": "psuDevice"},
+        {"name": "pricePerKwh", "label": N_("Price per kWh"), "kind": "float", "min": 0, "max": 100},
+        {"name": "currency", "label": N_("Currency"), "kind": "text", "max": 8, "optional": True},
+        {"name": "historyMinutes", "label": N_("Minutes in the graph"), "kind": "int", "min": 1, "max": 60},
+    ],
+    "xeneon-gpu-details": [DATA_COLOR, HEADER, UNIT],
+    "xeneon-homeassistant": [
+        DATA_COLOR, dict(HEADER, optional=True),
+        {"name": "entities", "label": N_("Entities"), "kind": "haEntities", "max": 4000, "optional": True},
+        {"name": "refreshSeconds", "label": N_("Refresh every (seconds)"), "kind": "int", "min": 2, "max": 300},
+    ],
+    "xeneon-ha-buttons": [
+        DATA_COLOR, dict(HEADER, optional=True),
+        {"name": "entities", "label": N_("Entities"), "kind": "haEntities", "max": 4000, "optional": True},
+        {"name": "refreshSeconds", "label": N_("Refresh every (seconds)"), "kind": "int", "min": 2, "max": 300},
+    ],
+    "xeneon-processes": [
+        DATA_COLOR, HEADER,
+        {"name": "sortBy", "label": N_("Sort by"), "kind": "choice",
+         "choices": [{"value": "cpu", "name": N_("CPU")}, {"value": "memory", "name": N_("Memory")}]},
+        {"name": "count", "label": N_("Number of processes"), "kind": "int", "min": 1, "max": 15},
+    ],
+    "xeneon-system": [DATA_COLOR, HEADER],
 }
 
 
@@ -228,14 +261,15 @@ def check_settings(settings):
                 return field["label"]
             if (kind == "int" and number != int(number)) or not field["min"] <= number <= field["max"]:
                 return field["label"]
-        elif kind == "text":
+        elif kind in ("text", "haEntities"):
             text = str(value or "").strip()
             if (not text and not field.get("optional")) or len(text) > field["max"]:
                 return field["label"]
         elif kind == "choice":
             if value not in [c["value"] for c in field["choices"]]:
                 return field["label"]
-        elif kind in ("device", "profileDevice", "battery", "storageSensor") and len(str(value or "")) > 128:
+        elif kind in ("device", "profileDevice", "battery", "storageSensor", "netInterface", "psuDevice") \
+                and len(str(value or "")) > 128:
             return field["label"]
         elif kind == "mount" and value and not str(value).startswith("/"):
             return field["label"]

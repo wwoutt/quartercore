@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.17 has:
+- Version 0.18 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -73,6 +73,19 @@ not audited by an independent developer.
     widgets from the widget store are not shown, and the weather doesn't use the
     device location. Turn it on in the settings or the tray menu, after turning
     off the fork's web kiosk.
+  - **Own kiosk widgets** (not in OpenLinkHub): **network** (download and upload
+    with a graph, from `/proc/net/dev`), **power** (what the computer draws from
+    the wall through a Corsair HID power supply, with the efficiency and the cost
+    at your price per kWh), **GPU details** (video memory, power, clocks and fan,
+    through `nvidia-smi`, or `/sys` for AMD), **top processes** (by CPU or
+    memory, from `/proc`), **system info** (computer, system, kernel, CPU,
+    uptime, load) and **Home Assistant**: tiles with the state of the entities
+    you choose, or big buttons. A tap switches lights, switches, fans and
+    automations, and starts scripts, scenes and buttons; locks and alarm panels
+    can't be switched from the kiosk, on purpose. Set the address and a
+    long-lived access token in Quartercore's settings; the token is kept in
+    Quartercore's settings file (readable only by you) and only sent to that
+    address.
   - **XENEON EDGE layout editor** (native): the kiosk as a live preview; drag
     widgets to move them and the corner to resize them on the 24 × 12 grid,
     show, hide, add and remove widgets, and change their settings (colours,

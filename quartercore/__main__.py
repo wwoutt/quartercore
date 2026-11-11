@@ -23,6 +23,7 @@ from .backend import Backend
 from .edge import Edge, find_edge_screen
 from .edgeeditor import EdgeEditor
 from .headset import Headset
+from .homeassistant import HomeAssistant
 from .keyboard import Keyboard
 from .lighting import Lighting
 from .profiles import Profiles
@@ -100,7 +101,9 @@ def main():
     context.setContextProperty("keyboard", keyboard)
     headset = Headset(backend)
     context.setContextProperty("headset", headset)
-    edge = Edge(backend)
+    home_assistant = HomeAssistant(settings, app)
+    context.setContextProperty("homeAssistant", home_assistant)
+    edge = Edge(backend, home_assistant=home_assistant)
     context.setContextProperty("edge", edge)
     edge_editor = EdgeEditor(backend, edge)
     context.setContextProperty("edgeEditor", edge_editor)

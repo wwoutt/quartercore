@@ -230,8 +230,25 @@ def initial_edge(variant=1):
     }
 
 
+# A small Home Assistant on the same port (its paths don't clash with OpenLinkHub's): token "test-token"
+HA_TOKEN = "test-token"
+
+
+def initial_home_assistant():
+    return {
+        "light.desk": {"entity_id": "light.desk", "state": "on", "attributes": {"friendly_name": "Desk lamp"}},
+        "switch.fan": {"entity_id": "switch.fan", "state": "off", "attributes": {"friendly_name": "Fan"}},
+        "sensor.living_temperature": {"entity_id": "sensor.living_temperature", "state": "21.4",
+                                      "attributes": {"friendly_name": "Living room", "unit_of_measurement": "°C"}},
+        "scene.movie": {"entity_id": "scene.movie", "state": "2026-11-11T00:00:00", "attributes": {"friendly_name": "Movie"}},
+        "lock.front_door": {"entity_id": "lock.front_door", "state": "locked", "attributes": {"friendly_name": "Front door"}},
+    }
+
+
 class State:
     def __init__(self):
+        self.home_assistant = initial_home_assistant()
+        self.ha_calls = []
         self.profiles = initial_profiles()
         self.effects = {"HUB1": initial_effects(), "KB1": initial_effects()}
         self.psu = copy.deepcopy(PSU)
@@ -270,9 +287,33 @@ class Handler(BaseHTTPRequestHandler):
         self.reply({"code": 200, "status": 0, "message": message})
 
     # Reads answer status 0 with their data, like the real OpenLinkHub
+    def home_assistant(self, method, body):
+        """Home Assistant's REST API, with its 401 for a wrong token."""
+        if self.headers.get("Authorization") != "Bearer " + HA_TOKEN:
+            self.send_response(401)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        s = self.state
+        if method == "GET" and self.path == "/api/":
+            self.reply({"message": "API running."})
+        elif method == "GET":
+            self.reply(list(s.home_assistant.values()))
+        else:
+            parts = self.path.split("/")              # "", "api", "services", domain, service
+            domain, service = (parts + ["", ""])[3:5]
+            entity = s.home_assistant.get(body.get("entity_id"))
+            s.ha_calls.append((domain, service, body.get("entity_id")))
+            if entity is not None and service == "toggle":
+                entity["state"] = "off" if entity["state"] == "on" else "on"
+            self.reply([])
+
     def do_GET(self):
         s = self.state
         s.gets.append(self.path)
+        if self.path in ("/api/states", "/api/"):
+            self.home_assistant("GET", {})
+            return
         if self.path == "/api/temperatures/":
             self.reply({"code": 200, "status": 0, "data": s.profiles})
         elif self.path.startswith("/api/temperatures/graph/"):
@@ -723,6 +764,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         s = self.state
         body = self.body()
+        if self.path.startswith("/api/services/"):
+            with s.lock:
+                self.home_assistant("POST", body)
+            return
         with s.lock:
             s.requests.append(("POST", self.path, body))
             if body.get("deviceId") == "EDGE1" and s.edge is not None:

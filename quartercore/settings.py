@@ -56,6 +56,28 @@ class Settings(QObject):
         self.changed.emit()
 
     @Property(str, notify=changed)
+    def haUrl(self):
+        """Home Assistant address for the kiosk widgets, e.g. http://homeassistant.local:8123."""
+        return self._get("homeAssistant/url", "")
+
+    @haUrl.setter
+    def haUrl(self, value):
+        self._set("homeAssistant/url", str(value).strip())
+
+    @Property(str, notify=changed)
+    def haToken(self):
+        """Long-lived access token of Home Assistant; stored in Quartercore.conf (only readable by the user)."""
+        return self._get("homeAssistant/token", "")
+
+    @haToken.setter
+    def haToken(self, value):
+        self._set("homeAssistant/token", str(value).strip())
+        try:
+            os.chmod(self.store.fileName(), 0o600)
+        except OSError:
+            pass
+
+    @Property(str, notify=changed)
     def serverUrl(self):
         return self._get("serverUrl", DEFAULT_URL)
 

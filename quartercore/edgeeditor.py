@@ -31,7 +31,9 @@ WIDGET_NAMES = {1: N_("Date / Time"), 2: N_("Weather"), 3: N_("Media Player"), 4
                 5: N_("Calendar"), 6: N_("CPU Temp"), 7: N_("CPU Load"), 8: N_("GPU Temp"), 9: N_("GPU Load"),
                 10: N_("Device Temperature"), 11: N_("Device RPM"), 12: N_("Temperature History"),
                 13: N_("Cooling Overview"), 14: N_("Profile Shortcuts"), 15: N_("Memory Usage"),
-                16: N_("Storage Overview")}
+                16: N_("Storage Overview"), 17: N_("Network"), 18: N_("Power"), 19: N_("GPU Details"),
+                20: N_("Home Assistant"), 21: N_("Top Processes"), 22: N_("System Info"),
+                23: N_("Home Assistant Buttons")}
 WATCH_INTERVAL_MS = 3000
 
 
@@ -327,6 +329,12 @@ class EdgeEditor(QObject):
         if kind == "mount":
             return [{"value": "", "name": self.tr("All file systems")}] + [
                 {"value": m["MountPoint"], "name": m["MountPoint"]} for m in sensors.storage_mounts()]
+        if kind == "netInterface":
+            return [{"value": "", "name": self.tr("All connections")}] + [
+                {"value": name, "name": name} for name in sorted(sensors.network_counters())]
+        if kind == "psuDevice":
+            return [{"value": "", "name": self.tr("The first power supply")}] + [
+                {"value": d["serial"], "name": d["product"]} for d in self.backend.devices if d.get("page") == "psu"]
         if kind == "storageSensor":
             return [{"value": "", "name": self.tr("Don't show")}, {"value": "*", "name": self.tr("All drives")}] + [
                 {"value": t["Key"], "name": "%s (%s)" % (t["Model"], t["Key"])} for t in sensors.storage_temperatures()]
