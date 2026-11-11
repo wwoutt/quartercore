@@ -169,10 +169,11 @@ ApplicationWindow {
             toast.text = (ok ? "✓ " : "⚠ ") + text
             toast.open()
         }
-        // Opening a device from the tray menu leaves the other sections
-        function onActiveChanged() {
-            if (backend.activeSerial !== "")
-                window.section = ""
+        // Opening a device (also from the tray menu) leaves the other sections. Not on
+        // activeChanged: that also comes with every refresh of the open device, and sent
+        // the XENEON EDGE layout page back to the device page after a second
+        function onDeviceRequested() {
+            window.section = ""
         }
     }
 }

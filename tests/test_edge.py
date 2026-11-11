@@ -454,5 +454,16 @@ class KioskWindowTest(unittest.TestCase):
         self.assertEqual(json.loads(line[-1]), {"made": True, "alive": True, "kept": 1})
 
 
+class LayoutSectionTest(unittest.TestCase):
+    def test_the_layout_page_stays_while_the_device_refreshes(self):
+        """The layout page jumped back to the open device after its first refresh."""
+        import subprocess
+        script = Path(__file__).resolve().parent / "section_check.py"
+        out = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=60)
+        line = [l for l in out.stdout.splitlines() if l.startswith("{")]
+        self.assertTrue(line, out.stderr[-2000:])
+        self.assertEqual(json.loads(line[-1]), {"after": "edge", "opened": ""})
+
+
 if __name__ == "__main__":
     unittest.main()

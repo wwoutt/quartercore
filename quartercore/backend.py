@@ -138,6 +138,8 @@ class Backend(QObject):
     systemChanged = Signal()
     devicesChanged = Signal()
     activeChanged = Signal()
+    # A device page was asked for (sidebar, tray): the window leaves the other sections
+    deviceRequested = Signal()
     speedProfilesChanged = Signal()
     serverUrlChanged = Signal()
     # Feedback for the user: text, ok
@@ -274,6 +276,8 @@ class Backend(QObject):
 
     @Slot(str)
     def selectDevice(self, serial):
+        if serial:
+            self.deviceRequested.emit()
         if serial == self._active_serial:
             return
         self._active_serial = serial
