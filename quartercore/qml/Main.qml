@@ -2,7 +2,9 @@
 // Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 // License: GPL-3.0 or later
 
+// QtWebEngine is imported here first: importing it only in qml/edge (CustomWidget.qml) hangs Qt's type loader
 import QtQuick
+import QtWebEngine
 import QtQuick.Controls
 import QtQuick.Layouts
 

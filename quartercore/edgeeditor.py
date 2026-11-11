@@ -7,6 +7,7 @@
 # web editor and the widget settings of OpenLinkHub when OpenLinkHub has them;
 # otherwise it starts with the upstream default widgets. Changes are a draft
 # until they are saved; the kiosk shows them right after saving.
+# Modified by wwoutt, 2026-11-11: own HTML widgets (customwidgets/) can be added
 
 import copy
 import json
@@ -37,15 +38,28 @@ WIDGET_NAMES = {1: N_("Date / Time"), 2: N_("Weather"), 3: N_("Media Player"), 4
 WATCH_INTERVAL_MS = 3000
 
 
-def keyed(layout):
+def keyed(layout, names=None):
+    """The layout items with the fields the editor uses; names: own widget id -> name."""
     items = []
     for item in layout["items"]:
         item = copy.deepcopy(item)
-        item["key"] = "widget:%d" % item["widgetId"]
+        item["key"] = store.item_key(item)
         item["template"] = item["settings"]["template"]
-        item["name"] = WIDGET_NAMES.get(item["widgetId"], item["settings"].get("name", ""))
+        if item.get("custom"):
+            item["name"] = (names or {}).get(item["custom"], item["custom"])
+        else:
+            item["custom"] = ""
+            item["name"] = WIDGET_NAMES.get(item["widgetId"], item["settings"].get("name", ""))
         items.append(item)
     return items
+
+
+def stored(item):
+    """An editor item as it goes into the layout file."""
+    out = {k: copy.deepcopy(item[k]) for k in ("widgetId", "x", "y", "w", "h", "hidden", "settings")}
+    if item.get("custom"):
+        out["custom"] = item["custom"]
+    return out
 
 
 class EdgeEditor(QObject):
@@ -56,10 +70,13 @@ class EdgeEditor(QObject):
     choicesChanged = Signal()
     citiesFound = Signal("QVariantList")
 
-    def __init__(self, backend, edge, parent=None, path=None):
+    def __init__(self, backend, edge, parent=None, path=None, custom_widgets=None):
         super().__init__(parent or backend)
         self.backend = backend
         self.edge = edge
+        self.custom_widgets = custom_widgets
+        if custom_widgets is not None:
+            custom_widgets.changed.connect(self._custom_changed)
         self.path = path or store.layout_path()
         self.geocoding_url = os.environ.get("QUARTERCORE_GEOCODING_URL") or GEOCODING_URL
         self._saved = None
@@ -80,13 +97,35 @@ class EdgeEditor(QObject):
 
     # --- the saved layout ---
 
+    def _names(self):
+        return {w["id"]: w["name"] for w in (self.custom_widgets.widgets if self.custom_widgets else [])}
+
+    def _shown(self, layout):
+        items = store.shown_items(layout)
+        names = self._names()
+        for item in items:
+            if item["custom"]:
+                item["name"] = names.get(item["custom"], item["custom"])
+        return items
+
+    def _custom_changed(self):
+        """Own widgets were installed, removed or renamed: new names and add menu."""
+        names = self._names()
+        for item in self._draft:
+            if item.get("custom"):
+                item["name"] = names.get(item["custom"], item["custom"])
+        if self._saved is not None:
+            self.edge.set_items(self._shown(self._saved))
+        self.changed.emit()
+        self.selectionChanged.emit()
+
     def _use(self, layout, write=True):
         if write:
             store.save(store.clean(layout), self.path)
             self._mtime = self._file_time()
         self._saved = layout
-        self._draft = keyed(layout)
-        self.edge.set_items(store.shown_items(layout))
+        self._draft = keyed(layout, self._names())
+        self.edge.set_items(self._shown(layout))
         self.edge.set_preview_items([])
         self.changed.emit()
         self.selectionChanged.emit()
@@ -118,7 +157,7 @@ class EdgeEditor(QObject):
 
     @Property(bool, notify=changed)
     def dirty(self):
-        return self._draft != keyed(self._saved)
+        return self._draft != keyed(self._saved, self._names())
 
     @Property(str, notify=selectionChanged)
     def selected(self):
@@ -132,7 +171,11 @@ class EdgeEditor(QObject):
     def available(self):
         """Widgets that aren't in the layout yet."""
         placed = {i["widgetId"] for i in self._draft}
-        return [{"id": k, "name": self.tr(WIDGET_NAMES[k])} for k in sorted(WIDGET_DEFAULTS) if k not in placed]
+        own = {i["custom"] for i in self._draft if i.get("custom")}
+        return [{"id": k, "custom": "", "name": self.tr(WIDGET_NAMES[k])} for k in sorted(WIDGET_DEFAULTS)
+                if k not in placed] + [
+            {"id": 0, "custom": w["id"], "name": self.tr("%1 (own widget)").replace("%1", w["name"])}
+            for w in (self.custom_widgets.widgets if self.custom_widgets else []) if w["id"] not in own]
 
     @Property(str, notify=changed)
     def problem(self):
@@ -209,6 +252,24 @@ class EdgeEditor(QObject):
         self.refreshChoices()
 
     @Slot(str)
+    def addCustom(self, widget_id):
+        """Adds an own widget in its default size; its settings show right away."""
+        widget = self.custom_widgets.manifest(widget_id) if self.custom_widgets else None
+        if widget is None or self._item("custom:" + widget_id):
+            return
+        spot = store.free_spot(self._draft, widget["size"]["w"], widget["size"]["h"])
+        hidden = spot is None
+        if hidden:
+            spot = {"x": 0, "y": 0, "w": widget["size"]["w"], "h": widget["size"]["h"]}
+            self.backend.notify.emit(self.tr("No free place: the widget is added hidden. Make room and turn it on."),
+                                     False)
+        item = store.custom_item(widget_id, spot["x"], spot["y"], spot["w"], spot["h"], hidden)
+        item.update(key="custom:" + widget_id, template="custom", name=widget["name"])
+        self._draft.append(item)
+        self._selected = item["key"]
+        self._edited()
+
+    @Slot(str)
     def remove(self, key):
         self._draft = [i for i in self._draft if i["key"] != key]
         if self._selected == key:
@@ -243,14 +304,13 @@ class EdgeEditor(QObject):
             self.backend.notify.emit(problem, False)
             return
         layout = {"version": store.VERSION, "columns": store.COLUMNS, "rows": store.ROWS,
-                  "items": [{k: copy.deepcopy(i[k]) for k in ("widgetId", "x", "y", "w", "h", "hidden", "settings")}
-                            for i in self._draft]}
+                  "items": [stored(i) for i in self._draft]}
         self._use(layout)
         self.backend.notify.emit(self.tr("Layout saved"), True)
 
     @Slot()
     def revert(self):
-        self._draft = keyed(self._saved)
+        self._draft = keyed(self._saved, self._names())
         self._edited()
 
     @Slot()

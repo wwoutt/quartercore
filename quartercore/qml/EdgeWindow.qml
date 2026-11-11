@@ -5,7 +5,9 @@
 // Native version of the OpenLinkHub kiosk page with the layout of the fork
 // wwoutt/OpenLinkHub. The widgets are in qml/edge/.
 
+// QtWebEngine is imported here first: importing it only in qml/edge (CustomWidget.qml) hangs Qt's type loader
 import QtQuick
+import QtWebEngine
 import QtQuick.Controls
 import QtQuick.Window
 import "edge"

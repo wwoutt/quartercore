@@ -1,6 +1,7 @@
 // Loads the QML component of one XENEON EDGE widget (kiosk and editor preview)
 // Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 // License: GPL-3.0 or later
+// Modified by wwoutt, 2026-11-11: own HTML widgets show in a web view (CustomWidget.qml)
 //
 // Components instead of file URLs: loading a file of this folder by URL from
 // here can deadlock Qt's type loader.

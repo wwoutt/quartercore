@@ -5,6 +5,7 @@
 // The preview is the real kiosk at 2560 x 720, scaled down. Drag a widget to
 // move it, drag the corner to resize it; it snaps to the 24 x 12 grid and
 // can't cover another widget. Nothing changes on the XENEON EDGE until "Save".
+// Modified by wwoutt, 2026-11-11: own widgets and the widget store
 
 import QtQuick
 import QtQuick.Controls
@@ -22,6 +23,8 @@ Flickable {
 
     Component.onCompleted: { edge.setPreview(true); edgeEditor.refreshChoices() }
     Component.onDestruction: edge.setPreview(false)
+
+    WidgetStore { id: store }
 
     ColumnLayout {
         id: content
@@ -62,9 +65,17 @@ Flickable {
                     id: addMenu
                     Repeater {
                         model: edgeEditor.available
-                        delegate: MenuItem { text: modelData.name; onTriggered: edgeEditor.add(modelData.id) }
+                        delegate: MenuItem {
+                            text: modelData.name
+                            onTriggered: modelData.custom ? edgeEditor.addCustom(modelData.custom) : edgeEditor.add(modelData.id)
+                        }
                     }
                 }
+            }
+            Button {
+                text: qsTr("Widget store")
+                icon.name: "get-hot-new-stuff"
+                onClicked: store.open()
             }
             Button { text: qsTr("Default widgets"); onClicked: edgeEditor.resetDefaults() }
             Button {
@@ -264,9 +275,14 @@ Flickable {
                         opacity: 0.7
                     }
                     WidgetSettings {
-                        visible: page.hasCurrent
+                        visible: page.hasCurrent && page.current.template !== "custom"
                         Layout.fillWidth: true
                         item: page.current
+                    }
+                    CustomWidgetSettings {
+                        visible: page.hasCurrent && page.current.template === "custom"
+                        Layout.fillWidth: true
+                        widgetId: page.hasCurrent ? (page.current.custom || "") : ""
                     }
                 }
             }

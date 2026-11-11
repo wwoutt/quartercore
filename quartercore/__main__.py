@@ -1,6 +1,7 @@
 # Starts Quartercore
 # Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 # License: GPL-3.0 or later
+# Modified by wwoutt, 2026-11-11: own HTML widgets (customwidgets/)
 #
 # Usage: python3 -m quartercore [--url http://127.0.0.1:27003] [--minimized]
 #        [--screenshot file.png [--page serial|settings|profiles[:name]|lighting[:effect]]]   (grab the window and exit, for tests)
@@ -11,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtCore import QObject, QTimer, QUrl
 from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtQml import QQmlApplicationEngine, QQmlComponent
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from . import __version__, i18n
 from .backend import Backend
+from .customwidgets.manager import CustomWidgets
 from .edge import Edge, find_edge_screen
 from .edgeeditor import EdgeEditor
 from .headset import Headset
@@ -71,6 +73,14 @@ def main():
         QQuickStyle.setStyle("org.kde.desktop")
         QQuickStyle.setFallbackStyle("Fusion")
 
+    # Own HTML widgets show in web views; QtWebEngine must start before the application
+    try:
+        from PySide6.QtWebEngineQuick import QtWebEngineQuick
+        QtWebEngineQuick.initialize()
+        web_views = True
+    except ImportError:
+        web_views = False
+
     app = QApplication(sys.argv)
     app.setApplicationName("Quartercore")
     app.setApplicationVersion(__version__)
@@ -105,7 +115,9 @@ def main():
     context.setContextProperty("homeAssistant", home_assistant)
     edge = Edge(backend, home_assistant=home_assistant)
     context.setContextProperty("edge", edge)
-    edge_editor = EdgeEditor(backend, edge)
+    custom_widgets = CustomWidgets(app, web_views=web_views)
+    context.setContextProperty("customWidgets", custom_widgets)
+    edge_editor = EdgeEditor(backend, edge, custom_widgets=custom_widgets)
     context.setContextProperty("edgeEditor", edge_editor)
     context.setContextProperty("appVersion", __version__)
     context.setContextProperty("languages", [{"code": "system", "name": ""}]
@@ -194,6 +206,12 @@ def main():
                 QTimer.singleShot(3000, lambda: profiles.select(profile))
             elif profile and section == "lighting":
                 QTimer.singleShot(3000, lambda: lighting.selectEffect(profile))
+            elif profile == "store" and section == "edge":
+                # edge:store opens the widget store
+                QTimer.singleShot(3000, lambda: window.findChild(QObject, "widgetStore").open())
+            elif profile.startswith("custom:") and section == "edge":
+                # edge:custom:<folder> selects that own widget in the editor
+                QTimer.singleShot(3000, lambda: edge_editor.select(profile))
             elif profile and section == "edge":
                 # edge:<widget id> selects that widget in the editor
                 QTimer.singleShot(3000, lambda: edge_editor.select("widget:" + profile))

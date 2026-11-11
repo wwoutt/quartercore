@@ -28,7 +28,7 @@ not audited by an independent developer.
 ## What it is
 - A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
   OpenLinkHub web interface, so both can be used side by side.
-- Version 0.18 has:
+- Version 0.19 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
   - **iCUE LINK System Hub**: every fan, pump and other device with live RPM and
@@ -69,9 +69,8 @@ not audited by an independent developer.
     temperature and RPM, temperature history, cooling overview, profile shortcuts,
     memory and storage. CPU and GPU temperature and load, memory, storage and
     the media player (MPRIS) are read by Quartercore itself; device sensors,
-    batteries and device profiles still come from OpenLinkHub. Custom HTML
-    widgets from the widget store are not shown, and the weather doesn't use the
-    device location. Turn it on in the settings or the tray menu, after turning
+    batteries and device profiles still come from OpenLinkHub. The weather
+    doesn't use the device location. Turn it on in the settings or the tray menu, after turning
     off the fork's web kiosk.
   - **Own kiosk widgets** (not in OpenLinkHub): **network** (download and upload
     with a graph, from `/proc/net/dev`), **power** (what the computer draws from
@@ -86,6 +85,14 @@ not audited by an independent developer.
     long-lived access token in Quartercore's settings; the token is kept in
     Quartercore's settings file (readable only by you) and only sent to that
     address.
+  - **Own widgets and a widget store**: anyone can make a kiosk widget in HTML
+    (`widget.json` + `widget.html`, with data from the internet or a Linux script,
+    settings such as a token, and actions), or get one from the **widget store**:
+    the reviewed catalog [wwoutt/quartercore-widgets](https://github.com/wwoutt/quartercore-widgets)
+    and GitHub repositories with the topic `quartercore-widget`. Each widget runs
+    in a sandboxed web view without network access. Same format as the custom
+    widgets of the fork wwoutt/OpenLinkHub, which are taken over once. How to
+    make one, with an AI prompt: [docs/WIDGETS.md](docs/WIDGETS.md).
   - **XENEON EDGE layout editor** (native): the kiosk as a live preview; drag
     widgets to move them and the corner to resize them on the 24 × 12 grid,
     show, hide, add and remove widgets, and change their settings (colours,
@@ -120,7 +127,9 @@ not audited by an independent developer.
 - [OpenLinkHub](https://github.com/jurkovic-nikola/OpenLinkHub) running on
   `http://127.0.0.1:27003` (or pass `--url`)
 - Python 3 with PySide6 6.5 or newer (Qt 6). Fedora / Bazzite: included, or
-  `sudo dnf install python3-pyside6`. Debian/Ubuntu: `sudo apt install python3-pyside6.qtquick`.
+  `sudo dnf install python3-pyside6`. Own HTML widgets also need QtWebEngine
+  (Fedora: `qt6-qtwebengine`, included on Bazzite); without it they show a
+  placeholder. Debian/Ubuntu: `sudo apt install python3-pyside6.qtquick`.
 - Best on KDE Plasma 6 (uses the Plasma style), works on other desktops with the
   Fusion style.
 

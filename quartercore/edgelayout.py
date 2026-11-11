@@ -2,6 +2,7 @@
 # Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 # License: GPL-3.0 or later
 # Modified by wwoutt, 2026-11-11: settings of the own widgets 17-23
+# Modified by wwoutt, 2026-11-11: own HTML widgets ("custom": <id>, see customwidgets/)
 #
 # The layout lives in ~/.config/Quartercore/xeneon-edge.json, so the native
 # kiosk doesn't need OpenLinkHub (roadmap step A). The grid is the one of the
@@ -12,6 +13,8 @@
 #
 # File: {"version": 1, "columns": 24, "rows": 12,
 #        "items": [{"widgetId", "x", "y", "w", "h", "hidden", "settings": {...}}]}
+# An own widget has widgetId 0, "custom": its folder name and settings
+# {"template": "custom"}; its own settings are kept by customwidgets/.
 
 import copy
 import json
@@ -24,6 +27,7 @@ from .edge import (AREA_CELLS, COLUMNS, DEFAULT_AREAS, ROWS, WIDGET_DEFAULTS, bu
 
 VERSION = 1
 COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+CUSTOM_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 
 def N_(text):
@@ -67,6 +71,15 @@ def from_openlinkhub(areas, layout, profile_areas):
     return {"version": VERSION, "columns": COLUMNS, "rows": ROWS, "items": items}
 
 
+def item_key(item):
+    return "custom:" + item["custom"] if item.get("custom") else "widget:%d" % int(item.get("widgetId") or 0)
+
+
+def custom_item(widget_id, x, y, w, h, hidden=False):
+    return {"widgetId": 0, "custom": widget_id, "x": x, "y": y, "w": w, "h": h, "hidden": hidden,
+            "settings": {"template": "custom"}}
+
+
 def overlaps(a, b):
     return a["x"] < b["x"] + b["w"] and b["x"] < a["x"] + a["w"] and a["y"] < b["y"] + b["h"] and b["y"] < a["y"] + a["h"]
 
@@ -79,7 +92,7 @@ def fits(item, items):
         return False
     if item.get("hidden"):
         return True
-    return not any(o is not item and o["widgetId"] != item["widgetId"] and not o.get("hidden") and overlaps(item, o)
+    return not any(o is not item and item_key(o) != item_key(item) and not o.get("hidden") and overlaps(item, o)
                    for o in items)
 
 
@@ -105,6 +118,16 @@ def load(path=None):
         return None
     items = []
     for item in data["items"]:
+        if isinstance(item, dict) and item.get("custom"):
+            try:
+                entry = custom_item(str(item["custom"]), int(item["x"]), int(item["y"]), int(item["w"]),
+                                    int(item["h"]), bool(item.get("hidden")))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if CUSTOM_ID.match(entry["custom"]) and item_key(entry) not in {item_key(i) for i in items} \
+                    and fits(entry, []):
+                items.append(entry)
+            continue
         try:
             widget_id = int(item["widgetId"])
             entry = {"widgetId": widget_id, "x": int(item["x"]), "y": int(item["y"]), "w": int(item["w"]),
@@ -132,8 +155,8 @@ def shown_items(layout):
         if item.get("hidden"):
             continue
         settings = item["settings"]
-        items.append({"key": "widget:%d" % item["widgetId"], "widgetId": item["widgetId"],
-                      "template": settings["template"], "name": settings.get("name", ""),
+        items.append({"key": item_key(item), "widgetId": item["widgetId"], "custom": item.get("custom", ""),
+                      "template": settings["template"], "name": settings.get("name", item.get("custom", "")),
                       "settings": settings, "hidden": False,
                       "x": item["x"], "y": item["y"], "w": item["w"], "h": item["h"]})
     return items
@@ -238,7 +261,8 @@ FIELDS = {
 
 
 def fields(template):
-    return COMMON + FIELDS.get(template, [])
+    # Own widgets have their own settings (gear button), see customwidgets/
+    return [] if template == "custom" else COMMON + FIELDS.get(template, [])
 
 
 def check_settings(settings):
