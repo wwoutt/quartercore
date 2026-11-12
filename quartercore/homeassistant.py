@@ -1,6 +1,7 @@
 # Home Assistant for the XENEON EDGE widgets: entity states and a tap to switch them
 # Author: wwoutt (2026-11-11), written by Claude (Anthropic)
 # License: GPL-3.0 or later
+# Modified by wwoutt, 2026-11-11: per tile a status entity and own rules (state -> colour and text)
 #
 # Uses Home Assistant's REST API (GET /api/states, POST /api/services/<domain>/<service>)
 # with a long-lived access token the user makes in their Home Assistant profile.
@@ -34,6 +35,18 @@ STATE_NAMES = {"on": N_("on"), "off": N_("off"), "open": N_("open"), "closed": N
                "unknown": N_("unknown")}
 
 
+# The usual states per kind of entity, as suggestions for the rules
+STATE_OPTIONS = {
+    "binary_sensor": ["on", "off"], "light": ["on", "off"], "switch": ["on", "off"],
+    "input_boolean": ["on", "off"], "fan": ["on", "off"], "automation": ["on", "off"],
+    "cover": ["open", "closed", "opening", "closing"], "lock": ["locked", "unlocked", "jammed"],
+    "person": ["home", "not_home"], "device_tracker": ["home", "not_home"],
+    "media_player": ["playing", "paused", "idle", "off"],
+    "alarm_control_panel": ["disarmed", "armed_home", "armed_away", "armed_night", "triggered"],
+    "sun": ["above_horizon", "below_horizon"], "sensor": ["> 0", "< 0"],
+}
+
+
 def domain(entity_id):
     return str(entity_id).split(".", 1)[0]
 
@@ -56,8 +69,80 @@ def entity_list(text):
     return out
 
 
-def tile(entity_id, state):
-    """What a tile shows for one entity; state is Home Assistant's state object or None."""
+def tile_specs(text):
+    """The tiles of a Home Assistant widget, from its "entities" setting:
+    [{"entity": "button.garage", "status": "binary_sensor.door", "rules": [{"state": "on",
+    "color": "#f59e0b", "text": "Open"}]}, ...]. The setting is that list as JSON, or (older,
+    and simple lists) "light.desk, sensor.temp" with "a > b" for a status entity."""
+    text = str(text or "").strip()
+    raw = []
+    if text.startswith("["):
+        try:
+            raw = [t for t in json.loads(text) if isinstance(t, dict)]
+        except ValueError:
+            raw = []
+    else:
+        for part in text.replace("\n", ",").split(","):
+            entity, _, status = (p.strip() for p in part.partition(">"))
+            raw.append({"entity": entity, "status": status})
+    out = []
+    for t in raw:
+        entity = str(t.get("entity") or "").strip()
+        status = str(t.get("status") or "").strip()
+        if not entity or "." not in entity or entity in [o["entity"] for o in out]:
+            continue
+        rules = [{"state": str(r.get("state", "")).strip(), "color": str(r.get("color") or ""),
+                  "text": str(r.get("text") or "")}
+                 for r in (t.get("rules") or []) if isinstance(r, dict) and str(r.get("state", "")).strip()]
+        out.append({"entity": entity, "status": status if "." in status else "", "rules": rules})
+    return out
+
+
+def _number(text):
+    try:
+        return float(str(text).replace(",", "."))
+    except ValueError:
+        return None
+
+
+def matches(rule_state, value):
+    """Whether a rule's state fits a state: "on" (the same, any case), or for numbers
+    "> 25", ">= 25", "< 10", "<= 10"."""
+    rule_state = str(rule_state).strip()
+    for op in (">=", "<=", ">", "<"):
+        if rule_state.startswith(op):
+            limit, number = _number(rule_state[len(op):].strip()), _number(value)
+            if limit is None or number is None:
+                return False
+            return {">=": number >= limit, "<=": number <= limit, ">": number > limit, "<": number < limit}[op]
+    return rule_state.lower() == str(value).strip().lower()
+
+
+def tile(entity_id, state, status_id="", status_state=None, rules=()):
+    """What a tile shows for one entity; state is Home Assistant's state object or None.
+    With a status entity the tile shows that entity's state (a door open or closed), while
+    a tap still switches entity_id. The first rule whose state fits the shown state gives
+    the tile its colour, and its text instead of the state."""
+    shown = _tile(entity_id, state)
+    source = state
+    if status_id:
+        status = _tile(status_id, status_state)
+        shown.update(state=status["state"], translate=status.get("translate", False), unit=status["unit"],
+                     on=status["on"], statusEntity=status_id)
+        source = status_state
+    if source:
+        value = str(source.get("state", ""))
+        for rule in rules or ():
+            if matches(rule.get("state", ""), value):
+                if rule.get("color"):
+                    shown["color"] = rule["color"]
+                if rule.get("text"):
+                    shown.update(state=rule["text"], translate=False, unit="")
+                break
+    return shown
+
+
+def _tile(entity_id, state):
     if not state:
         return {"entity": entity_id, "name": entity_id, "state": "–", "unit": "", "on": False,
                 "available": False, "actionable": False}
@@ -108,6 +193,24 @@ class HomeAssistant(QObject):
 
     def state(self, entity_id):
         return self._states.get(entity_id)
+
+    @Slot(str, result=str)
+    def name(self, entity_id):
+        """The friendly name of an entity, for the layout editor."""
+        s = self._states.get(entity_id) or {}
+        return (s.get("attributes") or {}).get("friendly_name") or entity_id
+
+    @Slot(str, result="QStringList")
+    def stateOptions(self, entity_id):
+        """States an entity can have, for the rules in the layout editor: its own list
+        (options, hvac_modes) or the usual ones of its kind, and the state it has now."""
+        s = self._states.get(entity_id) or {}
+        attributes = s.get("attributes") or {}
+        options = list(attributes.get("options") or attributes.get("hvac_modes") or [])
+        options += STATE_OPTIONS.get(domain(entity_id), [])
+        if s.get("state") not in (None, ""):
+            options.insert(0, str(s["state"]))
+        return list(dict.fromkeys(str(o) for o in options))
 
     def _request(self, path):
         request = QNetworkRequest(QUrl(self.settings.haUrl.strip().rstrip("/") + path))

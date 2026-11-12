@@ -85,6 +85,10 @@ not audited by an independent developer.
     long-lived access token in Quartercore's settings; the token is kept in
     Quartercore's settings file (readable only by you) and only sent to that
     address.
+    In the layout editor you search the entities by name to add a tile. A tile
+    can show the state of another entity ("Status from", e.g. a garage button
+    with the door sensor), and has its own rules: when the state is `on`, `heat`
+    or `> 25`, the tile gets the colour and the text you choose.
   - **Own widgets and a widget store**: anyone can make a kiosk widget in HTML
     (`widget.json` + `widget.html`, with data from the internet or a Linux script,
     settings such as a token, and actions), or get one from the **widget store**:

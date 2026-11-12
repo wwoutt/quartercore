@@ -4,6 +4,7 @@
 #
 # Modified by wwoutt, 2026-11-11: own widgets 17-23 (network, power, GPU details, Home Assistant,
 # processes, system info), not in OpenLinkHub.
+# Modified by wwoutt, 2026-11-11: Home Assistant tiles with a status entity and own colour rules
 #
 # Native QML version of the OpenLinkHub kiosk page (web/xeneon.html and
 # static/js/xeneon.js by Nikola Jurkovic) with the free layout of the fork
@@ -784,16 +785,17 @@ class Edge(QObject):
         return done
 
     def _home_assistant_view(self, settings):
-        from .homeassistant import entity_list, tile
+        from .homeassistant import tile, tile_specs
         ha = self.home_assistant
         if ha is None or not ha.configured:
             return {"available": False, "message": self.tr("Set the Home Assistant address and token in the settings"),
                     "tiles": []}
-        entities = entity_list(settings.get("entities"))
+        entities = tile_specs(settings.get("entities"))
         if not entities:
             return {"available": False, "message": self.tr("Choose entities in the layout editor"), "tiles": []}
         return {"available": True, "message": ha.status,
-                "tiles": [tile(e, ha.state(e)) for e in entities]}
+                "tiles": [tile(t["entity"], ha.state(t["entity"]), t["status"],
+                               ha.state(t["status"]) if t["status"] else None, t["rules"]) for t in entities]}
 
     @Slot(str)
     def activateEntity(self, entity_id):

@@ -3,6 +3,7 @@
 # License: GPL-3.0 or later
 # Modified by wwoutt, 2026-11-11: settings of the own widgets 17-23
 # Modified by wwoutt, 2026-11-11: own HTML widgets ("custom": <id>, see customwidgets/)
+# Modified by wwoutt, 2026-11-11: room for the tiles of the Home Assistant widgets (JSON)
 #
 # The layout lives in ~/.config/Quartercore/xeneon-edge.json, so the native
 # kiosk doesn't need OpenLinkHub (roadmap step A). The grid is the one of the
@@ -242,12 +243,12 @@ FIELDS = {
     "xeneon-gpu-details": [DATA_COLOR, HEADER, UNIT],
     "xeneon-homeassistant": [
         DATA_COLOR, dict(HEADER, optional=True),
-        {"name": "entities", "label": N_("Entities"), "kind": "haEntities", "max": 4000, "optional": True},
+        {"name": "entities", "label": N_("Entities"), "kind": "haEntities", "max": 20000, "optional": True},
         {"name": "refreshSeconds", "label": N_("Refresh every (seconds)"), "kind": "int", "min": 2, "max": 300},
     ],
     "xeneon-ha-buttons": [
         DATA_COLOR, dict(HEADER, optional=True),
-        {"name": "entities", "label": N_("Entities"), "kind": "haEntities", "max": 4000, "optional": True},
+        {"name": "entities", "label": N_("Entities"), "kind": "haEntities", "max": 20000, "optional": True},
         {"name": "refreshSeconds", "label": N_("Refresh every (seconds)"), "kind": "int", "min": 2, "max": 300},
     ],
     "xeneon-processes": [

@@ -5,6 +5,7 @@
 # Run: python3 -m unittest discover -s tests
 # Fake /proc files, a fake nvidia-smi line and the fake Home Assistant of fake_openlinkhub.py.
 
+import json
 import os
 import sys
 import tempfile
@@ -157,6 +158,31 @@ class HomeAssistantTest(unittest.TestCase):
         self.assertEqual(ha.tile("x.y", None)["available"], False)
         self.assertEqual(ha.tile("switch.a", {"state": "not_home"})["state"], "away")       # translated in QML
         self.assertEqual(ha.tile("sensor.a", {"state": "21.4"})["translate"], False)
+
+    def test_tiles_with_status_and_rules(self):
+        self.assertEqual(ha.tile_specs("button.garage > binary_sensor.door, light.desk, nonsense"),
+                         [{"entity": "button.garage", "status": "binary_sensor.door", "rules": []},
+                          {"entity": "light.desk", "status": "", "rules": []}])
+        stored = json.dumps([{"entity": "button.garage", "status": "binary_sensor.door",
+                              "rules": [{"state": "on", "color": "#ff0000", "text": "Open"}, {"state": ""}]}])
+        self.assertEqual(ha.tile_specs(stored)[0]["rules"], [{"state": "on", "color": "#ff0000", "text": "Open"}])
+        self.assertEqual(ha.tile_specs("[broken"), [])
+        button = {"state": "2026-11-11T10:00:00", "attributes": {"friendly_name": "Garage"}}
+        door = {"state": "on", "attributes": {"friendly_name": "Garage door"}}
+        rules = [{"state": "ON", "color": "#ff0000", "text": "Open"}, {"state": "off", "color": "#00ff00", "text": ""}]
+        t = ha.tile("button.garage", button, "binary_sensor.door", door, rules)
+        self.assertEqual((t["name"], t["state"], t["color"], t["actionable"], t["entity"]),
+                         ("Garage", "Open", "#ff0000", True, "button.garage"))     # a tap presses the button
+        t = ha.tile("button.garage", button, "binary_sensor.door", dict(door, state="off"), rules)
+        self.assertEqual((t["state"], t["translate"], t["color"]), ("off", True, "#00ff00"))   # the state, translated
+        self.assertNotIn("color", ha.tile("button.garage", button, "binary_sensor.door", None, rules))
+        self.assertNotIn("color", ha.tile("button.garage", button))
+        # Rules on the entity itself, and numbers
+        warm = [{"state": "> 25", "color": "#ff0000", "text": ""}, {"state": "<= 10", "color": "#0000ff", "text": "Cold"}]
+        self.assertEqual(ha.tile("sensor.t", {"state": "26.5"}, rules=warm)["color"], "#ff0000")
+        self.assertEqual(ha.tile("sensor.t", {"state": "9"}, rules=warm)["state"], "Cold")
+        self.assertNotIn("color", ha.tile("sensor.t", {"state": "18"}, rules=warm))
+        self.assertNotIn("color", ha.tile("sensor.t", {"state": "unavailable"}, rules=warm))
 
     def test_states_and_switching(self):
         client = ha.HomeAssistant(FakeSettings(self.url, fake_openlinkhub.HA_TOKEN))

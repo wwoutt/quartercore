@@ -1,9 +1,12 @@
 // Home Assistant: entity tiles (state) or big buttons; a tap toggles, presses or starts
 // Author: wwoutt (2026-11-11), written by Claude (Anthropic)
 // License: GPL-3.0 or later
+// Modified by wwoutt, 2026-11-11: a status entity per tile, and colours and texts from its rules
 //
 // The entities and their states come from homeassistant.py through edge.data.
 // Sensors and other entities that can't be switched only show their state.
+// A tile can show the state of a second entity (a tap presses the garage button, the tile
+// shows the door sensor), and rules like "on -> orange, Open" set its colour and text.
 
 import QtQuick
 import QtQuick.Controls
@@ -38,14 +41,16 @@ EdgeCard {
             model: card.tiles
             delegate: Rectangle {
                 required property var modelData
+                // A rule of this tile (layout editor) can give it its own colour
+                readonly property color tint: modelData.color || card.accent
+                readonly property bool lit: modelData.on || !!modelData.color
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: 1
                 Layout.preferredHeight: 1
                 radius: 10
-                color: modelData.on ? Qt.rgba(card.accent.r, card.accent.g, card.accent.b, card.buttons ? 0.55 : 0.25)
-                                    : "#1a212b"
-                border.color: modelData.on ? card.accent : "#26303c"
+                color: lit ? Qt.rgba(tint.r, tint.g, tint.b, card.buttons ? 0.55 : 0.25) : "#1a212b"
+                border.color: lit ? tint : "#26303c"
                 opacity: modelData.available ? (tap.pressed ? 0.7 : 1) : 0.45
 
                 ColumnLayout {
@@ -55,7 +60,8 @@ EdgeCard {
                     Label {
                         text: modelData.name
                         color: card.textColor
-                        font.pixelSize: card.buttons ? Math.min(card.unit * 1.5, parent.height * 0.35) : card.unit * 1.05
+                        font.pixelSize: card.buttons ? Math.min(card.unit * 1.5, parent.height * (stateLabel.visible ? 0.24 : 0.35))
+                                                     : card.unit * 1.05
                         font.bold: card.buttons
                         wrapMode: Text.WordWrap
                         maximumLineCount: 2
@@ -65,11 +71,12 @@ EdgeCard {
                     }
                     Item { Layout.fillHeight: true; visible: card.buttons }
                     Label {
-                        visible: !card.buttons || !modelData.actionable
+                        id: stateLabel
+                        visible: !card.buttons || !modelData.actionable || !!modelData.statusEntity
                         text: (modelData.translate ? qsTr(modelData.state) : modelData.state)
                               + (modelData.unit ? " " + modelData.unit : "")
-                        color: modelData.on ? card.textColor : card.subTextColor
-                        font.pixelSize: card.buttons ? card.unit * 1.1 : card.unit * 1.8
+                        color: lit ? card.textColor : card.subTextColor
+                        font.pixelSize: card.buttons ? Math.min(card.unit * 1.1, parent.height * 0.24) : card.unit * 1.8
                         font.bold: !card.buttons
                         elide: Text.ElideRight
                         Layout.fillWidth: true
