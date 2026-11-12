@@ -1,6 +1,7 @@
 // Battery status of wireless devices
 // Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 // License: GPL-3.0 or later
+// Modified by wwoutt, 2026-11-12: also other devices (Razer, Bluetooth, ...), a charging sign and a message
 
 import QtQuick
 import QtQuick.Controls
@@ -13,7 +14,10 @@ EdgeCard {
     Label {
         visible: (info.rows || []).length === 0
         anchors.centerIn: parent
-        text: qsTr("No wireless devices")
+        width: parent.width
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+        text: info.message || qsTr("No wireless devices")
         color: card.subTextColor
         font.pixelSize: card.unit * 1.2
     }
@@ -28,6 +32,7 @@ EdgeCard {
                 RowLayout {
                     width: parent.width
                     Label { text: modelData.name; color: card.textColor; font.pixelSize: card.unit * 1.2; elide: Text.ElideRight; Layout.fillWidth: true }
+                    Label { visible: !!modelData.charging; text: "⚡"; color: card.accent; font.pixelSize: card.unit * 1.2 }
                     Label { text: modelData.level + " %"; color: card.textColor; font.pixelSize: card.unit * 1.2; font.bold: true }
                 }
                 Rectangle {
@@ -38,6 +43,14 @@ EdgeCard {
                     }
                 }
             }
+        }
+        Label {
+            visible: (info.rows || []).length > 0 && !!info.message
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: info.message || ""
+            color: card.subTextColor
+            font.pixelSize: card.unit * 0.9
         }
     }
 }

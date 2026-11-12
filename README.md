@@ -11,8 +11,18 @@ the open-source Linux interface for Corsair devices by
 
 OpenLinkHub runs as a service and is normally controlled from its web interface.
 Quartercore controls the same service from a normal desktop window instead,
-with the look of your KDE Plasma desktop. All credit for OpenLinkHub itself, the
-device support and its API goes to Nikola Jurković and the OpenLinkHub contributors.
+with the look of your KDE Plasma desktop, and turns a XENEON EDGE into a native
+dashboard with its own widgets and a widget store. Its companion service
+**quartercore-core** is taking the devices over from OpenLinkHub one at a time
+(power supply, XENEON EDGE, HS80 MAX WIRELESS and K100 so far), so that in the end
+Quartercore runs on its own. All credit for OpenLinkHub itself, the device support
+and its API, which quartercore-core ports from Go to Python, goes to Nikola Jurković
+and the OpenLinkHub contributors.
+
+**At a glance:** [what it is](#what-it-is) · [what it is not](#what-it-is-not) ·
+[install](#install) · [quartercore-core](#quartercore-core-devices-without-openlinkhub-test-phase) ·
+[make a widget](docs/WIDGETS.md) · [widget store](https://github.com/wwoutt/quartercore-widgets) ·
+[roadmap](ROADMAP.md)
 
 > **Not an official Corsair product**, and not affiliated with or endorsed by Corsair.
 > Corsair, iCUE and XENEON are trademarks of Corsair, used here only to say which
@@ -26,8 +36,9 @@ in [Claude Code](https://claude.com/claude-code), on the direction and testing o
 not audited by an independent developer.
 
 ## What it is
-- A **client** for the OpenLinkHub HTTP API. It sends the same requests as the
-  OpenLinkHub web interface, so both can be used side by side.
+- A **desktop program** for the OpenLinkHub HTTP API. It sends the same requests as
+  the OpenLinkHub web interface, so both can be used side by side, and it works the
+  same with quartercore-core in between.
 - Version 0.19 has:
   - **Overview**: CPU and GPU temperature and load, memory, drive temperatures,
     and your devices.
@@ -72,6 +83,10 @@ not audited by an independent developer.
     batteries and device profiles still come from OpenLinkHub. The weather
     doesn't use the device location. Turn it on in the settings or the tray menu, after turning
     off the fork's web kiosk.
+    The battery status widget also shows devices outside OpenLinkHub, read from
+    `/sys`: wireless Razer devices through the OpenRazer kernel driver (your user
+    must be in the group `plugdev`), and what the kernel itself knows, such as
+    Bluetooth headsets, Logitech mice and game controllers.
   - **Own kiosk widgets** (not in OpenLinkHub): **network** (download and upload
     with a graph, from `/proc/net/dev`), **power** (what the computer draws from
     the wall through a Corsair HID power supply, with the efficiency and the cost
@@ -249,7 +264,8 @@ and set the address back to `http://127.0.0.1:27003`.
 
 ## Tested on
 Bazzite 44 (Fedora Atomic), KDE Plasma 6, PySide6 6.11, OpenLinkHub 0.9.4 with an
-iCUE LINK System Hub (12 RX RGB fans and a TITAN 360 AIO).
+iCUE LINK System Hub (12 RX RGB fans and a TITAN 360 AIO), an HX1500i power supply,
+a K100 keyboard, an HS80 MAX WIRELESS headset and a XENEON EDGE.
 
 ## Development
 - `python3 -m unittest discover -s tests`: tests against a fake OpenLinkHub

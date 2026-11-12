@@ -96,10 +96,40 @@ class WidgetDataTest(unittest.TestCase):
                                        {"storageSensor": "*", "unit": "°F"})
         self.assertEqual(temps, [{"name": "SSD / a", "value": "86.0 °F"}])
 
+    def test_other_batteries(self):
+        from quartercore import batteries
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            mouse = root / "hid" / "razermouse" / "0003:1532:00A8.000F"
+            mouse.mkdir(parents=True)
+            for name, text in (("charge_level", "204\n"), ("charge_status", "1\n"), ("device_serial", "PM1\n"),
+                               ("device_type", "Razer Naga V2 Pro (Wireless)\n")):
+                (mouse / name).write_text(text)
+            (root / "hid" / "razermouse" / "0003:1532:00A8.0010").mkdir()       # an interface without a battery
+            self.assertEqual(batteries.razer_batteries(root / "hid"),
+                             ({"razer:PM1": {"Device": "Razer Naga V2 Pro (Wireless)", "Level": 80, "Charging": True}},
+                              False))
+            supplies = root / "power_supply"
+            for name, scope in (("hidpp_battery_0", "Device"), ("BAT0", "System")):
+                d = supplies / name
+                d.mkdir(parents=True)
+                for f, text in (("scope", scope), ("type", "Battery"), ("capacity", "55"), ("status", "Discharging"),
+                                ("manufacturer", "Logitech"), ("model_name", "MX Master 3")):
+                    (d / f).write_text(text + "\n")
+            self.assertEqual(batteries.kernel_batteries(supplies),
+                             {"kernel:hidpp_battery_0": {"Device": "Logitech MX Master 3", "Level": 55, "Charging": False}})
+            if os.getuid() != 0:
+                (mouse / "charge_level").chmod(0)                                 # not in the group plugdev
+                self.assertEqual(batteries.razer_batteries(root / "hid"), ({}, True))
+
     def test_battery_and_media(self):
         systray = {"battery": {"B": {"Device": "Mouse", "Level": 120}, "A": {"Device": "Headset", "Level": 50}}}
-        self.assertEqual(e.battery_rows(systray, {}), [{"name": "Headset", "level": 50}, {"name": "Mouse", "level": 100}])
+        self.assertEqual(e.battery_rows(systray, {}), [{"name": "Headset", "level": 50, "charging": False},
+                                                       {"name": "Mouse", "level": 100, "charging": False}])
         self.assertEqual(e.battery_rows(systray, {"batteryDevice": "B"})[0]["name"], "Mouse")
+        others = {"razer:PM1": {"Device": "Razer Naga V2 Pro", "Level": 80, "Charging": True}}
+        self.assertEqual(e.battery_rows(systray, {}, others)[-1], {"name": "Razer Naga V2 Pro", "level": 80, "charging": True})
+        self.assertEqual(len(e.battery_rows(systray, {"batteryDevice": "razer:PM1"}, others)), 1)
         m = e.media_view({"title": "T", "artists": ["A", "B"], "position": 65, "length": 130})
         self.assertEqual((m["artist"], m["position"], m["progress"]), ("A, B", "1:05", 0.5))
         self.assertFalse(e.media_view("media monitor is not initialized")["available"])

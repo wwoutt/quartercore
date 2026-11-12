@@ -5,6 +5,7 @@
 # Modified by wwoutt, 2026-11-11: own widgets 17-23 (network, power, GPU details, Home Assistant,
 # processes, system info), not in OpenLinkHub.
 # Modified by wwoutt, 2026-11-11: Home Assistant tiles with a status entity and own colour rules
+# Modified by wwoutt, 2026-11-12: batteries of other devices (Razer, Bluetooth, ...) in the battery widget
 #
 # Native QML version of the OpenLinkHub kiosk page (web/xeneon.html and
 # static/js/xeneon.js by Nikola Jurkovic) with the free layout of the fork
@@ -21,6 +22,8 @@ from datetime import datetime, timedelta, timezone
 
 from PySide6.QtCore import Property, QObject, QTimer, QUrl, QUrlQuery, Signal, Slot
 from PySide6.QtNetwork import QNetworkRequest
+
+from .batteries import other_batteries
 
 COLUMNS, ROWS = 24, 12
 EDGE_WIDTH, EDGE_HEIGHT = 2560, 720
@@ -393,13 +396,16 @@ def storage_temperatures(data, settings):
     return rows
 
 
-def battery_rows(systray, settings):
+def battery_rows(systray, settings, others=None):
+    """OpenLinkHub's batteries, then the ones Quartercore reads itself (batteries.py)."""
     wanted = settings.get("batteryDevice") or ""
     rows = []
-    for serial, d in sorted(((systray or {}).get("battery") or {}).items()):
+    found = sorted(((systray or {}).get("battery") or {}).items()) + sorted((others or {}).items())
+    for serial, d in found:
         if wanted and wanted != serial:
             continue
-        rows.append({"name": d.get("Device") or serial, "level": max(0, min(100, int(number(d.get("Level")) or 0)))})
+        rows.append({"name": d.get("Device") or serial, "level": max(0, min(100, int(number(d.get("Level")) or 0))),
+                     "charging": bool(d.get("Charging"))})
     return rows
 
 
@@ -716,7 +722,10 @@ class Edge(QObject):
                 out[key] = {"rows": storage_rows(raw.get("storage"), s),
                             "temperatures": storage_temperatures(raw.get("storageTemp"), s)}
             elif t == "xeneon-battery-status":
-                out[key] = {"rows": battery_rows(raw.get("systray"), s)}
+                others, denied = raw.get("otherBatteries") or ({}, False)
+                out[key] = {"rows": battery_rows(raw.get("systray"), s, others),
+                            "message": self.tr("A Razer battery can't be read: join the group plugdev and log in again")
+                            if denied else ""}
             elif t == "xeneon-media-player":
                 out[key] = media_view(raw.get("media"))
             elif t == "xeneon-temperature-history":
@@ -763,6 +772,8 @@ class Edge(QObject):
                     s = item["settings"]
                     self._raw["processes:" + item["key"]] = self._processes.read(s.get("sortBy") or "cpu",
                                                                                  int(s.get("count") or 5))
+        if "xeneon-battery-status" in templates and self._ticks % 10 == 0:
+            self._raw["otherBatteries"] = other_batteries()
         if "xeneon-system" in templates and self._ticks % 5 == 0:
             self._raw["system"] = self._system_info()
         if templates & HOME_ASSISTANT_TEMPLATES and self.home_assistant is not None:

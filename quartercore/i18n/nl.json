@@ -521,5 +521,6 @@
   "Colour of the tile": "Kleur van de tegel",
   "Text on the tile (empty: the state)": "Tekst op de tegel (leeg: de toestand)",
   "Remove this rule": "Deze regel verwijderen",
-  "Add a rule": "Regel toevoegen"
+  "Add a rule": "Regel toevoegen",
+  "A Razer battery can't be read: join the group plugdev and log in again": "Een Razer-batterij is niet leesbaar: word lid van de groep plugdev en log opnieuw in"
 }

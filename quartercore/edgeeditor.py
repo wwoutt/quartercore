@@ -1,6 +1,7 @@
 # XENEON EDGE layout editor: the saved layout, editing it, and widget settings
 # Author: wwoutt (2026-11-10), written by Claude (Anthropic)
 # License: GPL-3.0 or later
+# Modified by wwoutt, 2026-11-12: other devices' batteries (batteries.py) in the battery choice
 #
 # Owns ~/.config/Quartercore/xeneon-edge.json (see edgelayout.py) and gives the
 # kiosk its widgets. The first time, it takes over the layout of the fork's
@@ -18,6 +19,7 @@ from PySide6.QtNetwork import QNetworkRequest
 
 from . import edgelayout as store
 from . import sensors
+from .batteries import other_batteries
 from .edge import WIDGET_DEFAULTS, widget_settings
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
@@ -384,8 +386,9 @@ class EdgeEditor(QObject):
                                                           else v.get("Device") or "")}
                     for c, v in sorted(channels.items(), key=lambda kv: int(kv[0]))]
         if kind == "battery":
+            others = sorted(other_batteries()[0].items())
             return [{"value": "", "name": self.tr("All devices")}] + [
-                {"value": serial, "name": b.get("Device") or serial} for serial, b in sorted(self._battery.items())]
+                {"value": serial, "name": b.get("Device") or serial} for serial, b in sorted(self._battery.items()) + others]
         if kind == "mount":
             return [{"value": "", "name": self.tr("All file systems")}] + [
                 {"value": m["MountPoint"], "name": m["MountPoint"]} for m in sensors.storage_mounts()]
