@@ -20,7 +20,7 @@ OpenLinkHub is no longer needed. Estimates are rough.
 
 ## Notes for step 8 (XENEON EDGE)
 Decided on 2026-11-10: the native kiosk is QML only. Custom HTML widgets from the
-widget store of [wwoutt/OpenLinkHub](https://github.com/wwoutt/OpenLinkHub) are not
+widget store of the former fork wwoutt/OpenLinkHub are not
 shown natively (a placeholder marks their place); a native widget format follows
 later. Part 1 (0.9) has the kiosk and the 16 upstream widgets. Part 2:
 - a native layout editor (drag, resize, hide), saved in the same layout file

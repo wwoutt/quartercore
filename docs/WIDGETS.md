@@ -5,8 +5,8 @@ with its own data. Share it in the
 [widget store](https://github.com/wwoutt/quartercore-widgets), or install widgets
 other people made.
 
-> The format is the same as the custom widgets of the fork
-> [wwoutt/OpenLinkHub](https://github.com/wwoutt/OpenLinkHub), so those widgets
+> The format is the same as the custom widgets of the former OpenLinkHub fork
+> wwoutt/OpenLinkHub (no longer on GitHub), so those widgets
 > work here unchanged. The first time Quartercore starts with this feature, it
 > takes over your widgets, their settings and `secrets.json` from
 > `~/.config/openlinkhub-widgets/` (once; nothing is changed there).
