@@ -145,10 +145,11 @@ not audited by an independent developer.
 ## Requirements
 - [OpenLinkHub](https://github.com/jurkovic-nikola/OpenLinkHub) running on
   `http://127.0.0.1:27003` (or pass `--url`)
-- Python 3 with PySide6 6.5 or newer (Qt 6). Fedora / Bazzite: included, or
-  `sudo dnf install python3-pyside6`. Own HTML widgets also need QtWebEngine
-  (Fedora: `qt6-qtwebengine`, included on Bazzite); without it they show a
-  placeholder. Debian/Ubuntu: `sudo apt install python3-pyside6.qtquick`.
+- Python 3 with PySide6 6.5 or newer (Qt 6). Fedora: `sudo dnf install
+  python3-pyside6`. Bazzite and other Fedora Atomic systems: `sudo rpm-ostree
+  install python3-pyside6`, then reboot (Bazzite 45 no longer ships it in the
+  image). Own HTML widgets also need QtWebEngine (Fedora: `qt6-qtwebengine`,
+  included on Bazzite); without it they show a placeholder. Debian/Ubuntu: `sudo apt install python3-pyside6.qtquick`.
 - Best on KDE Plasma 6 (uses the Plasma style), works on other desktops with the
   Fusion style.
 
@@ -263,7 +264,7 @@ sudo systemctl restart OpenLinkHub
 and set the address back to `http://127.0.0.1:27003`.
 
 ## Tested on
-Bazzite 44 (Fedora Atomic), KDE Plasma 6, PySide6 6.11, OpenLinkHub 0.9.4 with an
+Bazzite 45 (Fedora Atomic), KDE Plasma 6, PySide6 6.11, OpenLinkHub 0.9.4 with an
 iCUE LINK System Hub (12 RX RGB fans and a TITAN 360 AIO), an HX1500i power supply,
 a K100 keyboard, an HS80 MAX WIRELESS headset and a XENEON EDGE.
 

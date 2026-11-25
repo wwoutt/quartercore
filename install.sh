@@ -25,6 +25,7 @@ fi
 
 python3 -c 'import PySide6.QtQuick' 2>/dev/null || {
   echo "PySide6 (Qt for Python) is missing. Fedora: sudo dnf install python3-pyside6" >&2
+  echo "Bazzite / Fedora Atomic: sudo rpm-ostree install python3-pyside6, then reboot" >&2
   exit 1
 }
 
